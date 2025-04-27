@@ -1,103 +1,155 @@
-import Image from "next/image";
+import Link from "next/link";
+
 
 export default function Home() {
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <main className='min-h-screen'>
+      {/* Hero Section */}
+      <section className='bg-gradient-to-b from-white to-blue-50 dark:from-gray-900 dark:to-gray-800 py-20'>
+        <div className='container mx-auto px-6 text-center'>
+          <h1 className='text-6xl font-bold text-gray-900 dark:text-white mb-4'>
+            iFound<span className='text-blue-500'>4u</span>
+          </h1>
+          <h2 className='text-3xl font-bold text-blue-500 mb-6'>
+            Find your lost items
+          </h2>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+          <p className='mt-6 text-xl max-w-2xl mx-auto text-gray-700 dark:text-gray-300'>
+            A community-driven platform that helps you find lost items and
+            return found ones. Connect with helpful people in your area and
+            recover what matters to you.
+          </p>
+
+          <div className='mt-10 flex flex-wrap gap-4 justify-center'>
+            <Link
+              href='/auth/sign-up'
+              className='px-8 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors'
+            >
+              Get Started
+            </Link>
+            <Link
+              href='/auth/login'
+              className='px-8 py-3 bg-white text-blue-600 font-semibold rounded-lg border border-blue-600 hover:bg-blue-50 transition-colors'
+            >
+              Sign In
+            </Link>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      </section>
+
+      {/* How It Works Section */}
+      <section className='py-16 bg-white dark:bg-gray-900'>
+        <div className='container mx-auto px-6'>
+          <h2 className='text-3xl font-bold text-center text-gray-900 dark:text-white mb-12'>
+            How <span className='text-blue-500'>iFound4u</span> Works
+          </h2>
+
+          <div className='grid md:grid-cols-2 lg:grid-cols-3 gap-8'>
+            {/* Card 1 */}
+            <div className='bg-white dark:bg-gray-800 rounded-lg p-6 shadow-md hover:shadow-lg transition-shadow'>
+              <div className='h-12 w-12 flex items-center justify-center bg-blue-100 dark:bg-blue-900 rounded-full mb-4'>
+                <span className='text-blue-500 text-xl font-bold'>1</span>
+              </div>
+              <h3 className='text-xl font-semibold mb-2 text-gray-900 dark:text-white'>
+                Create a Post
+              </h3>
+              <p className='text-gray-600 dark:text-gray-300'>
+                Describe your lost item with details and location information to
+                help others identify it.
+              </p>
+            </div>
+
+            {/* Card 2 */}
+            <div className='bg-white dark:bg-gray-800 rounded-lg p-6 shadow-md hover:shadow-lg transition-shadow'>
+              <div className='h-12 w-12 flex items-center justify-center bg-blue-100 dark:bg-blue-900 rounded-full mb-4'>
+                <span className='text-blue-500 text-xl font-bold'>2</span>
+              </div>
+              <h3 className='text-xl font-semibold mb-2 text-gray-900 dark:text-white'>
+                Community Help
+              </h3>
+              <p className='text-gray-600 dark:text-gray-300'>
+                Our community members will help look for your item and notify
+                you if they find it.
+              </p>
+            </div>
+
+            {/* Card 3 */}
+            <div className='bg-white dark:bg-gray-800 rounded-lg p-6 shadow-md hover:shadow-lg transition-shadow'>
+              <div className='h-12 w-12 flex items-center justify-center bg-blue-100 dark:bg-blue-900 rounded-full mb-4'>
+                <span className='text-blue-500 text-xl font-bold'>3</span>
+              </div>
+              <h3 className='text-xl font-semibold mb-2 text-gray-900 dark:text-white'>
+                Report Found Items
+              </h3>
+              <p className='text-gray-600 dark:text-gray-300'>
+                Found something? Upload a photo and details to help connect
+                items with their owners.
+              </p>
+            </div>
+
+            {/* Card 4 */}
+            <div className='bg-white dark:bg-gray-800 rounded-lg p-6 shadow-md hover:shadow-lg transition-shadow'>
+              <div className='h-12 w-12 flex items-center justify-center bg-blue-100 dark:bg-blue-900 rounded-full mb-4'>
+                <span className='text-blue-500 text-xl font-bold'>4</span>
+              </div>
+              <h3 className='text-xl font-semibold mb-2 text-gray-900 dark:text-white'>
+                Get Notifications
+              </h3>
+              <p className='text-gray-600 dark:text-gray-300'>
+                Receive instant alerts when someone finds your item or reports
+                something similar.
+              </p>
+            </div>
+
+            {/* Card 5 */}
+            <div className='bg-white dark:bg-gray-800 rounded-lg p-6 shadow-md hover:shadow-lg transition-shadow'>
+              <div className='h-12 w-12 flex items-center justify-center bg-blue-100 dark:bg-blue-900 rounded-full mb-4'>
+                <span className='text-blue-500 text-xl font-bold'>5</span>
+              </div>
+              <h3 className='text-xl font-semibold mb-2 text-gray-900 dark:text-white'>
+                Reward Helpers
+              </h3>
+              <p className='text-gray-600 dark:text-gray-300'>
+                Show appreciation to community members who help you find your
+                belongings.
+              </p>
+            </div>
+
+            {/* Card 6 */}
+            <div className='bg-white dark:bg-gray-800 rounded-lg p-6 shadow-md hover:shadow-lg transition-shadow'>
+              <div className='h-12 w-12 flex items-center justify-center bg-blue-100 dark:bg-blue-900 rounded-full mb-4'>
+                <span className='text-blue-500 text-xl font-bold'>6</span>
+              </div>
+              <h3 className='text-xl font-semibold mb-2 text-gray-900 dark:text-white'>
+                Build Community
+              </h3>
+              <p className='text-gray-600 dark:text-gray-300'>
+                Join a network of helpful people making a difference in each
+                other&apos;s lives.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className='py-16 bg-blue-50 dark:bg-gray-800'>
+        <div className='container mx-auto px-6 text-center'>
+          <h2 className='text-3xl font-bold text-gray-900 dark:text-white mb-4'>
+            Ready to find what you\&apos;ve lost?
+          </h2>
+          <p className='max-w-2xl mx-auto text-lg text-gray-600 dark:text-gray-300 mb-8'>
+            Join our community today and experience the power of people helping
+            people.
+          </p>
+          <Link
+            href='/auth/sign-up'
+            className='px-8 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors'
+          >
+            Join iFound4u Now
+          </Link>
+        </div>
+      </section>
+    </main>
   );
 }
