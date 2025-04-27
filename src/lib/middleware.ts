@@ -39,9 +39,14 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // Check if the path is protected and requires authentication
+  const isProtectedRoute =
+    request.nextUrl.pathname.startsWith("/protected") ||
+    request.nextUrl.pathname.startsWith("/settings");
+
   // Only protect routes that should require authentication
   // Allow public access to the main site and auth pages
-  if (!user && request.nextUrl.pathname.startsWith("/protected")) {
+  if (!user && isProtectedRoute) {
     // No user trying to access protected routes, redirect to login page
     const url = request.nextUrl.clone();
     url.pathname = "/auth/login";
