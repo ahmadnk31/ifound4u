@@ -136,7 +136,7 @@ export default function Home() {
       <section className='py-16 bg-blue-50 dark:bg-gray-800'>
         <div className='container mx-auto px-6 text-center'>
           <h2 className='text-3xl font-bold text-gray-900 dark:text-white mb-4'>
-            Ready to find what you\&apos;ve lost?
+            Ready to find what you&apos;ve lost?
           </h2>
           <p className='max-w-2xl mx-auto text-lg text-gray-600 dark:text-gray-300 mb-8'>
             Join our community today and experience the power of people helping
