@@ -4,6 +4,7 @@ import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/client";
 import { toast } from "sonner";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { useDropzone } from "react-dropzone";
 import {
@@ -371,7 +372,9 @@ export const ProfileCard = ({ profile }: ProfileCardProps) => {
                         </Button>
                       </div>
                       <div className='w-40 h-40 rounded-md overflow-hidden border'>
-                        <img
+                        <Image
+                          width={160}
+                          height={160}
                           src={
                             preview || field.value || "/placeholder-avatar.png"
                           }
