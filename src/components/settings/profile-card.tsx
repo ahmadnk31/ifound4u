@@ -31,7 +31,8 @@ const profileCardSchema = z.object({
 
 export type ProfileCard = z.infer<typeof profileCardSchema>;
 
-type ProfileCardProps = z.infer<typeof profileCardSchema> & {
+// Change the props definition to only expect a profile property
+type ProfileCardProps = {
   profile?: ProfileCard;
 };
 
