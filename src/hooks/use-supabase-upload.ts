@@ -166,7 +166,7 @@ const useSupabaseUpload = (options: UseSupabaseUploadOptions) => {
     successes,
     cacheControl,
     upsert,
-    supabase,
+    // supabase is removed from dependency array as it's a stable reference
   ]);
 
   useEffect(() => {

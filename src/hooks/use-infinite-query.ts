@@ -13,10 +13,7 @@ type SupabaseClientType = typeof supabase;
 // Utility type to check if the type is any
 type IfAny<T, Y, N> = 0 extends 1 & T ? Y : N;
 
-// Define a generic Record type to replace 'any'
-type GenericRecord = Record<string, unknown>;
-
-// Define GenericRelationship type to match Supabase's expected structure
+// Define generic types that match Supabase expectations
 interface GenericRelationship {
   foreignKeyName: string;
   columns: string[];
@@ -24,12 +21,27 @@ interface GenericRelationship {
   referencedColumns: string[];
 }
 
-// Define a GenericTable type that satisfies the GenericTable constraint
 interface GenericTable {
-  Row: GenericRecord;
-  Insert: GenericRecord;
-  Update: GenericRecord;
+  Row: Record<string, unknown>;
+  Insert: Record<string, unknown>;
+  Update: Record<string, unknown>;
   Relationships: GenericRelationship[];
+}
+
+interface GenericView {
+  Row: Record<string, unknown>;
+  Relationships: GenericRelationship[];
+}
+
+interface GenericFunction {
+  Args: Record<string, unknown>;
+  Returns: unknown;
+}
+
+interface GenericSchema {
+  Tables: Record<string, GenericTable>;
+  Views: Record<string, GenericView>;
+  Functions: Record<string, GenericFunction>;
 }
 
 // Extracts the database type from the supabase client. If the supabase client doesn't have a type, it will fallback properly.
@@ -37,11 +49,7 @@ type Database = SupabaseClientType extends SupabaseClient<infer U>
   ? IfAny<
       U,
       {
-        public: {
-          Tables: Record<string, GenericTable>;
-          Views: Record<string, GenericRecord>;
-          Functions: Record<string, GenericRecord>;
-        };
+        public: GenericSchema;
       },
       U
     >
@@ -129,11 +137,9 @@ function createStore<
 
     setState({ isFetching: true });
 
-    let query = supabase
-      .from(tableName)
-      .select(columns, {
-        count: "exact",
-      }) as unknown as SupabaseSelectBuilder<T>;
+    let query = supabase.from(tableName).select(columns, {
+      count: "exact",
+    }) as unknown as SupabaseSelectBuilder<T>;
 
     if (trailingQuery) {
       query = trailingQuery(query);
