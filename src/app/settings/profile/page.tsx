@@ -12,6 +12,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/client";
+import Link from "next/link";
+import { CreditCard } from "lucide-react";
 
 export default function ProfilePage() {
   const [profileData, setProfileData] = useState({
@@ -66,9 +68,12 @@ export default function ProfilePage() {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue='profile' className='w-full'>
-            <TabsList className='grid w-full grid-cols-2 mb-8'>
+            <TabsList className='grid w-full grid-cols-3 mb-8'>
               <TabsTrigger value='profile'>Profile Information</TabsTrigger>
               <TabsTrigger value='password'>Password</TabsTrigger>
+              <TabsTrigger value='payments' asChild>
+                <Link href='/settings/payments'>Payment Settings</Link>
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value='profile'>
@@ -90,6 +95,25 @@ export default function ProfilePage() {
                   </p>
                 </div>
                 <PasswordChangeForm />
+              </div>
+            </TabsContent>
+
+            <TabsContent value='payments'>
+              <div className='flex flex-col items-center justify-center p-8 space-y-4'>
+                <CreditCard className='h-12 w-12 text-muted-foreground' />
+                <div className='text-center'>
+                  <h3 className='text-lg font-medium'>Payment Settings</h3>
+                  <p className='text-sm text-muted-foreground'>
+                    Set up your Stripe account to receive payments when users
+                    claim your found items
+                  </p>
+                </div>
+                <Link
+                  href='/settings/payments'
+                  className='inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50'
+                >
+                  Manage Payment Settings
+                </Link>
               </div>
             </TabsContent>
           </Tabs>

@@ -87,6 +87,8 @@ interface UseInfiniteQueryProps<T extends SupabaseTableName> {
   pageSize?: number;
   // A function that modifies the query. Can be used to sort, filter, etc. If .range is used, it will be overwritten.
   trailingQuery?: SupabaseQueryHandler<T>;
+  // Optional key to force recreation of the store when it changes
+  key?: string;
 }
 
 interface StoreState<TData> {
@@ -175,7 +177,19 @@ function createStore<
 
   const initialize = async () => {
     setState({ isLoading: true, isSuccess: false, data: [] });
-    await fetchNextPage();
+    await fetchPage(0);
+    setState({ isLoading: false, hasInitialFetch: true });
+  };
+
+  const reset = async () => {
+    setState({
+      data: [],
+      count: 0,
+      isSuccess: false,
+      isLoading: true,
+      hasInitialFetch: false,
+    });
+    await fetchPage(0);
     setState({ isLoading: false, hasInitialFetch: true });
   };
 
@@ -187,6 +201,7 @@ function createStore<
     },
     fetchNextPage,
     initialize,
+    reset,
   };
 }
 
@@ -206,6 +221,7 @@ function useInfiniteQuery<
   T extends SupabaseTableName = SupabaseTableName
 >(props: UseInfiniteQueryProps<T>) {
   const storeRef = useRef(createStore<TData, T>(props));
+  const previousKey = useRef(props.key);
 
   const state = useSyncExternalStore(
     storeRef.current.subscribe,
@@ -214,6 +230,14 @@ function useInfiniteQuery<
   );
 
   useEffect(() => {
+    // Check if key has changed to force refresh
+    if (props.key !== undefined && props.key !== previousKey.current) {
+      previousKey.current = props.key;
+      storeRef.current = createStore<TData, T>(props);
+      storeRef.current.initialize();
+      return;
+    }
+
     // Recreate store if props change
     if (
       storeRef.current.getState().hasInitialFetch &&
@@ -228,7 +252,7 @@ function useInfiniteQuery<
     if (!state.hasInitialFetch && typeof window !== "undefined") {
       storeRef.current.initialize();
     }
-  }, [props, state.hasInitialFetch]);
+  }, [props, state.hasInitialFetch, props.key]);
 
   return {
     data: state.data,
@@ -239,6 +263,7 @@ function useInfiniteQuery<
     error: state.error,
     hasMore: state.count > state.data.length,
     fetchNextPage: storeRef.current.fetchNextPage,
+    reset: storeRef.current.reset,
   };
 }
 

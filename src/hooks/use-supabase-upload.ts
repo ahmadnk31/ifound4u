@@ -11,7 +11,22 @@ const supabase = createClient();
 interface FileWithPreview extends File {
   preview?: string;
   errors: readonly FileError[];
+  uploadName?: string; // Add uploadName property to track the sanitized filename
 }
+
+// Function to generate a sanitized, unique filename
+const generateUniqueFileName = (originalName: string): string => {
+  const timestamp = Date.now();
+  const fileExtension = originalName.split(".").pop() || "";
+  const baseName = originalName
+    .split(".")
+    .slice(0, -1)
+    .join(".")
+    .replace(/[^a-zA-Z0-9]/g, "_")
+    .substring(0, 20); // Limit the base name length
+
+  return `${baseName}_${timestamp}.${fileExtension}`;
+};
 
 type UseSupabaseUploadOptions = {
   /**
@@ -52,6 +67,11 @@ type UseSupabaseUploadOptions = {
    * When set to false, an error is thrown if the object already exists. Defaults to `false`
    */
   upsert?: boolean;
+  /**
+   * When set to false, clicking on the dropzone will not open file dialog.
+   * Defaults to true (clicking will open file dialog)
+   */
+  noClick?: boolean;
 };
 
 type UseSupabaseUploadReturn = ReturnType<typeof useSupabaseUpload>;
@@ -65,6 +85,7 @@ const useSupabaseUpload = (options: UseSupabaseUploadOptions) => {
     maxFiles = 1,
     cacheControl = 3600,
     upsert = false,
+    noClick = false,
   } = options;
 
   const [files, setFiles] = useState<FileWithPreview[]>([]);
@@ -87,15 +108,20 @@ const useSupabaseUpload = (options: UseSupabaseUploadOptions) => {
       const validFiles = acceptedFiles
         .filter((file) => !files.find((x) => x.name === file.name))
         .map((file) => {
-          (file as FileWithPreview).preview = URL.createObjectURL(file);
-          (file as FileWithPreview).errors = [];
-          return file as FileWithPreview;
+          const fileWithPreview = file as FileWithPreview;
+          fileWithPreview.preview = URL.createObjectURL(file);
+          fileWithPreview.errors = [];
+          // Generate a unique sanitized filename for upload
+          fileWithPreview.uploadName = generateUniqueFileName(file.name);
+          return fileWithPreview;
         });
 
       const invalidFiles = fileRejections.map(({ file, errors }) => {
-        (file as FileWithPreview).preview = URL.createObjectURL(file);
-        (file as FileWithPreview).errors = errors;
-        return file as FileWithPreview;
+        const fileWithPreview = file as FileWithPreview;
+        fileWithPreview.preview = URL.createObjectURL(file);
+        fileWithPreview.errors = errors;
+        fileWithPreview.uploadName = generateUniqueFileName(file.name);
+        return fileWithPreview;
       });
 
       const newFiles = [...files, ...validFiles, ...invalidFiles];
@@ -107,7 +133,7 @@ const useSupabaseUpload = (options: UseSupabaseUploadOptions) => {
 
   const dropzoneProps = useDropzone({
     onDrop,
-    noClick: true,
+    noClick: noClick,
     accept: allowedMimeTypes.reduce(
       (acc, type) => ({ ...acc, [type]: [] }),
       {}
@@ -133,16 +159,20 @@ const useSupabaseUpload = (options: UseSupabaseUploadOptions) => {
 
     const responses = await Promise.all(
       filesToUpload.map(async (file) => {
+        // Use the sanitized unique filename for upload
+        const uploadName = file.uploadName || generateUniqueFileName(file.name);
+
         const { error } = await supabase.storage
           .from(bucketName)
-          .upload(!!path ? `${path}/${file.name}` : file.name, file, {
+          .upload(!!path ? `${path}/${uploadName}` : uploadName, file, {
             cacheControl: cacheControl.toString(),
             upsert,
           });
         if (error) {
           return { name: file.name, message: error.message };
         } else {
-          return { name: file.name, message: undefined };
+          // Store the original name and upload name mapping if needed
+          return { name: file.name, message: undefined, uploadName };
         }
       })
     );
@@ -158,6 +188,9 @@ const useSupabaseUpload = (options: UseSupabaseUploadOptions) => {
     setSuccesses(newSuccesses);
 
     setLoading(false);
+
+    // Return the responses so that the component can get the uploadName
+    return responses.filter((r) => !r.message);
   }, [
     files,
     path,
