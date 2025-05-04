@@ -1,182 +1,103 @@
-import { useCallback, useEffect, useState } from "react";
-import { createClient } from "@/lib/client";
-import { toast } from "sonner";
+"use client";
 
-// Define types for the chat
-export interface ChatUser {
-  id: string;
-  name: string;
+import { createClient } from "@/lib/client";
+import { useCallback, useEffect, useState } from "react";
+
+interface UseRealtimeChatProps {
+  roomName: string;
+  username: string;
 }
 
 export interface ChatMessage {
   id: string;
   content: string;
+  user: {
+    name: string;
+  };
   createdAt: string;
-  roomName: string;
-  senderId: string;
-  user: ChatUser;
-  isRead: boolean;
+  isRead?: boolean; // Add isRead property
+  senderId?: string; // Add sender ID for read status checks
 }
 
-export interface RealtimeChatOptions {
-  roomName: string;
-  username: string;
-  initialMessages?: ChatMessage[];
-}
+const EVENT_MESSAGE_TYPE = "message";
 
-export function useRealtimeChat({
-  roomName,
-  username,
-  initialMessages = [],
-}: RealtimeChatOptions) {
-  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+export function useRealtimeChat({ roomName, username }: UseRealtimeChatProps) {
+  const supabase = createClient();
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [channel, setChannel] = useState<ReturnType<
+    typeof supabase.channel
+  > | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [userId, setUserId] = useState<string | null>(null);
-  const supabase = createClient();
+  const [unreadCount, setUnreadCount] = useState<number>(0);
 
-  // Get messages from the database initially
+  // Load existing messages from the database
   useEffect(() => {
-    const getInitialMessages = async () => {
+    const loadExistingMessages = async () => {
       try {
         setIsLoading(true);
-        // Get current user
-        const { data: userData } = await supabase.auth.getUser();
-        const currentUserId = userData?.user?.id || null;
-        setUserId(currentUserId);
+        setError(null);
 
-        // Get messages from the database
-        const { data: messagesData, error: messagesError } = await supabase
-          .from("chat_messages")
-          .select(
-            `
-            id,
-            content,
-            created_at,
-            room_name,
-            is_read,
-            sender_id,
-            users (id, user_metadata->name)
-            `
-          )
-          .eq("room_name", roomName)
-          .order("created_at", { ascending: true });
+        // Use the API endpoint to fetch messages instead of direct database access
+        const response = await fetch(
+          `/api/chat-message?room=${encodeURIComponent(roomName)}`
+        );
 
-        if (messagesError) {
-          throw messagesError;
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to fetch messages");
         }
 
-        // Transform the data to match the ChatMessage type
-        const transformedMessages: ChatMessage[] = messagesData.map((msg) => ({
-          id: msg.id,
-          content: msg.content,
-          createdAt: msg.created_at,
-          roomName: msg.room_name,
-          senderId: msg.sender_id,
-          isRead: msg.is_read,
-          user: {
-            id: msg.sender_id,
-            // Use the username from users table, fallback to the one provided
-            name:
-              (msg.users?.name as string) ||
-              (msg.sender_id === currentUserId ? username : "Unknown User"),
-          },
-        }));
+        const data = await response.json();
 
-        setMessages((prev) => {
-          // Merge with previous messages to avoid duplicates
-          const merged = [...prev, ...transformedMessages];
-          // Remove duplicates based on message id
-          const unique = merged.filter(
-            (msg, index, self) =>
-              index === self.findIndex((m) => m.id === msg.id)
-          );
-          // Sort by creation date
-          return unique.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-        });
+        if (data.messages) {
+          // Get current user for unread count calculation
+          const { data: sessionData } = await supabase.auth.getSession();
+          const currentUserId = sessionData?.session?.user?.id;
+          let count = 0;
 
-        // Count unread messages
-        if (currentUserId) {
-          const unread = transformedMessages.filter(
-            (msg) => !msg.isRead && msg.senderId !== currentUserId
+          // Transform database messages to match our ChatMessage format
+          const formattedMessages: ChatMessage[] = data.messages.map(
+            (msg: any) => {
+              // Count unread messages not sent by current user
+              if (!msg.is_read && msg.sender_id !== currentUserId) {
+                count++;
+              }
+
+              return {
+                id: msg.id,
+                content: msg.message,
+                user: {
+                  name: msg.sender_name,
+                },
+                createdAt: msg.created_at,
+                isRead: msg.is_read,
+                senderId: msg.sender_id,
+              };
+            }
           );
-          setUnreadCount(unread.length);
+
+          setMessages(formattedMessages);
+          setUnreadCount(count);
+
+          // Mark messages as read after a short delay
+          if (count > 0) {
+            setTimeout(() => markMessagesAsRead(), 2000);
+          }
         }
-      } catch (err) {
-        console.error("Error fetching chat messages:", err);
-        setError("Failed to load messages. Please try refreshing.");
+      } catch (err: any) {
+        console.error("Failed to load chat messages:", err);
+        setError("Failed to load chat messages");
       } finally {
         setIsLoading(false);
       }
     };
 
-    getInitialMessages();
-  }, [roomName, username, supabase]);
-
-  // Listen for new messages
-  useEffect(() => {
-    const subscription = supabase
-      .channel(`room:${roomName}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "chat_messages",
-          filter: `room_name=eq.${roomName}`,
-        },
-        async (payload) => {
-          // When a new message comes in, fetch the user data to display the name
-          const { data: userData } = await supabase.auth.getUser();
-          const currentUserId = userData?.user?.id;
-
-          // Get the sender information
-          const { data: senderData } = await supabase
-            .from("users")
-            .select("id, user_metadata->name")
-            .eq("id", payload.new.sender_id)
-            .single();
-
-          const isOwnMessage = payload.new.sender_id === currentUserId;
-
-          // Create the new message
-          const newMessage: ChatMessage = {
-            id: payload.new.id,
-            content: payload.new.content,
-            createdAt: payload.new.created_at,
-            roomName: payload.new.room_name,
-            senderId: payload.new.sender_id,
-            isRead: payload.new.is_read || isOwnMessage, // Mark own messages as read
-            user: {
-              id: payload.new.sender_id,
-              name:
-                (senderData?.name as string) ||
-                (isOwnMessage ? username : "Unknown User"),
-            },
-          };
-
-          // Add the new message to the list
-          setMessages((prev) => [...prev, newMessage]);
-
-          // Increment unread count if message is from someone else
-          if (!isOwnMessage) {
-            setUnreadCount((prev) => prev + 1);
-          }
-        }
-      )
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          setIsConnected(true);
-        }
-      });
-
-    // Cleanup function
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [roomName, username, supabase]);
+    if (roomName) {
+      loadExistingMessages();
+    }
+  }, [roomName]);
 
   // Mark messages as read
   const markMessagesAsRead = useCallback(async () => {
@@ -186,6 +107,38 @@ export function useRealtimeChat({
       const currentUserId = sessionData?.session?.user?.id;
 
       if (!currentUserId) return;
+
+      // Get the chat room details to determine who's the item owner and who's the claimer
+      const { data: chatRoom } = await supabase
+        .from("item_claims")
+        .select(
+          `
+          id, 
+          user_id, 
+          item_id,
+          items:items (user_id)
+        `
+        )
+        .eq("chat_room_id", roomName)
+        .single();
+
+      if (!chatRoom) {
+        console.error("Could not find chat room details");
+        return;
+      }
+
+      // Determine if current user is item owner or claimer
+      const isItemOwner = chatRoom.items?.user_id === currentUserId;
+      const isClaimer = chatRoom.user_id === currentUserId;
+
+      if (!isItemOwner && !isClaimer) {
+        console.log(
+          "Current user is neither item owner nor claimer, cannot mark messages as read"
+        );
+        return;
+      }
+
+      console.log("User role in chat:", { isItemOwner, isClaimer });
 
       // Get unread messages sent by the OTHER party (not by current user)
       const unreadMessages = messages.filter(
@@ -226,7 +179,7 @@ export function useRealtimeChat({
     } catch (err) {
       console.error("Error marking messages as read:", err);
     }
-  }, [messages, supabase]);
+  }, [messages, roomName, supabase]);
 
   // Mark messages as read when component is visible and focused
   useEffect(() => {
@@ -236,16 +189,7 @@ export function useRealtimeChat({
       }
     };
 
-    // For mobile: handle when app comes back from background
-    const handleFocus = () => {
-      if (unreadCount > 0) {
-        markMessagesAsRead();
-      }
-    };
-
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    window.addEventListener("focus", handleFocus);
-    window.addEventListener("touchstart", handleFocus, { once: true });
 
     // Mark as read when component mounts if document is visible
     if (document.visibilityState === "visible" && unreadCount > 0) {
@@ -254,45 +198,176 @@ export function useRealtimeChat({
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("focus", handleFocus);
-      window.removeEventListener("touchstart", handleFocus);
     };
   }, [markMessagesAsRead, unreadCount]);
 
-  // Send message function
+  // Set up realtime subscription for new messages
+  useEffect(() => {
+    const newChannel = supabase.channel(roomName);
+
+    newChannel
+      .on("broadcast", { event: EVENT_MESSAGE_TYPE }, (payload) => {
+        const newMessage = payload.payload as ChatMessage;
+        setMessages((current) => [...current, newMessage]);
+
+        // Get current user to check if we need to update unread count
+        supabase.auth.getSession().then(({ data }) => {
+          const currentUserId = data?.session?.user?.id;
+
+          // If the message is from someone else, increment unread count
+          if (newMessage.senderId !== currentUserId) {
+            setUnreadCount((prev) => prev + 1);
+
+            // Show browser notification if supported
+            if (Notification.permission === "granted") {
+              new Notification("New Message", {
+                body: `${newMessage.user.name}: ${newMessage.content}`,
+              });
+            }
+
+            // Mark as read if document is visible
+            if (document.visibilityState === "visible") {
+              setTimeout(() => markMessagesAsRead(), 1000);
+            }
+          }
+        });
+      })
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          setIsConnected(true);
+        }
+      });
+
+    setChannel(newChannel);
+
+    // Request notification permission if not already granted
+    if (
+      Notification.permission !== "granted" &&
+      Notification.permission !== "denied"
+    ) {
+      Notification.requestPermission();
+    }
+
+    return () => {
+      supabase.removeChannel(newChannel);
+    };
+  }, [roomName, username, supabase, markMessagesAsRead]);
+
+  // Function to send a new message
   const sendMessage = useCallback(
     async (content: string) => {
+      if (!channel || !isConnected || !content.trim()) return;
+
       try {
-        // Check for empty message
-        const trimmedContent = content.trim();
-        if (!trimmedContent) {
-          return;
-        }
+        const messageId = crypto.randomUUID();
+        const timestamp = new Date().toISOString();
 
-        // Get current user
-        const { data: userData } = await supabase.auth.getUser();
-        if (!userData?.user?.id) {
-          toast.error("You need to be logged in to send messages");
-          return;
-        }
+        // Get current user's session info
+        const { data } = await supabase.auth.getSession();
+        const userEmail = data?.session?.user?.email || "anonymous@user.com";
+        const userId = data?.session?.user?.id || null;
 
-        // Insert the new message into the database
-        const { error } = await supabase.from("chat_messages").insert({
-          content: trimmedContent,
-          room_name: roomName,
-          sender_id: userData.user.id,
+        // Get the chat room details to determine who's the other participant
+        const { data: chatRoom } = await supabase
+          .from("item_claims")
+          .select(
+            `
+            user_id, 
+            claimer_email,
+            items:items (user_id)
+          `
+          )
+          .eq("chat_room_id", roomName)
+          .single();
+
+        // Determine if message sender is item owner or claimer
+        const isItemOwner = chatRoom?.items?.user_id === userId;
+        const isClaimer =
+          chatRoom?.user_id === userId ||
+          (chatRoom?.claimer_email &&
+            chatRoom.claimer_email.toLowerCase() === userEmail.toLowerCase());
+
+        // Always mark your own messages as read (for yourself)
+        // The other party will see them as unread
+        const isSelfRead = true;
+
+        console.log("Sending message as:", { isItemOwner, isClaimer });
+
+        // Update local state immediately for the sender
+        const message: ChatMessage = {
+          id: messageId,
+          content,
+          user: {
+            name: username,
+          },
+          createdAt: timestamp,
+          isRead: isSelfRead,
+          senderId: userId,
+        };
+
+        setMessages((current) => [...current, message]);
+
+        console.log("Attempting to save message:", {
+          roomName,
+          username,
+          userId: userId || "none",
+          userEmail,
         });
 
-        if (error) {
-          console.error("Error sending message:", error);
-          toast.error("Failed to send message. Please try again.");
+        // Store message in database for persistence
+        const { error: dbError } = await supabase.from("chat_messages").insert({
+          id: messageId,
+          chat_room_id: roomName,
+          sender_id: userId,
+          sender_name: username,
+          sender_email: userEmail,
+          message: content,
+          is_read: false, // Initially unread for the recipient
+          created_at: timestamp,
+        });
+
+        if (dbError) {
+          console.error("Database error saving message:", dbError);
+          throw dbError;
         }
+
+        // Send message through realtime channel with additional metadata
+        await channel.send({
+          type: "broadcast",
+          event: EVENT_MESSAGE_TYPE,
+          payload: {
+            ...message,
+            isItemOwnerSender: isItemOwner,
+            isClaimerSender: isClaimer,
+          },
+        });
+
+        console.log("Message sent and saved successfully");
       } catch (err) {
-        console.error("Error in sendMessage:", err);
-        toast.error("An error occurred. Please try again.");
+        console.error("Error sending message:", err);
+
+        // If there was an error, try to fall back to just realtime messaging
+        try {
+          const fallbackMsg = {
+            id: crypto.randomUUID(),
+            content,
+            user: { name: username },
+            createdAt: new Date().toISOString(),
+          };
+
+          await channel.send({
+            type: "broadcast",
+            event: EVENT_MESSAGE_TYPE,
+            payload: fallbackMsg,
+          });
+
+          console.log("Sent message via realtime only (database save failed)");
+        } catch (fallbackErr) {
+          console.error("Even fallback messaging failed:", fallbackErr);
+        }
       }
     },
-    [roomName, supabase]
+    [channel, isConnected, username, roomName, supabase]
   );
 
   return {

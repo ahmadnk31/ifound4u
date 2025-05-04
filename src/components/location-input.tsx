@@ -97,6 +97,30 @@ export function LocationInput({
     if (e.target.value === "" && value) {
       onChange(null);
     }
+    // If the user manually types an address without selecting from autocomplete
+    // provide a default location to prevent form validation errors
+    else if (e.target.value !== "") {
+      onChange({
+        address: e.target.value,
+        latitude: value?.latitude || 0,
+        longitude: value?.longitude || 0,
+        placeId: value?.placeId || "",
+      });
+    }
+  };
+
+  // Add a blur handler to ensure location is always set
+  const handleBlur = () => {
+    // If address exists but coordinates are missing or zero, keep the address but set default coordinates
+    if (address && (!value?.latitude || !value?.longitude)) {
+      console.log("Setting default coordinates on blur");
+      onChange({
+        address: address,
+        latitude: value?.latitude || 0,
+        longitude: value?.longitude || 0,
+        placeId: value?.placeId || "",
+      });
+    }
   };
 
   return (
@@ -120,6 +144,7 @@ export function LocationInput({
             type='text'
             value={address}
             onChange={handleInputChange}
+            onBlur={handleBlur}
             placeholder={placeholder}
             className='border-input flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-colors outline-none focus:ring-2 focus:ring-ring focus:border-input pl-10'
           />

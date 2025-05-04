@@ -83,18 +83,31 @@ export default function MyItemsPage() {
           <TabsTrigger value='found'>Found Items</TabsTrigger>
         </TabsList>
 
-        {/* These hidden TabsContent components are required for proper tab functionality */}
-        <TabsContent value='all' className='hidden'></TabsContent>
-        <TabsContent value='lost' className='hidden'></TabsContent>
-        <TabsContent value='found' className='hidden'></TabsContent>
+        <TabsContent value='all'>
+          <ItemsList
+            initialType='all'
+            userId={userId}
+            showFilters={false}
+            showPagination={true}
+          />
+        </TabsContent>
+        <TabsContent value='lost'>
+          <ItemsList
+            initialType='lost'
+            userId={userId}
+            showFilters={false}
+            showPagination={true}
+          />
+        </TabsContent>
+        <TabsContent value='found'>
+          <ItemsList
+            initialType='found'
+            userId={userId}
+            showFilters={false}
+            showPagination={true}
+          />
+        </TabsContent>
       </Tabs>
-
-      <ItemsList
-        initialType={activeTab}
-        userId={userId}
-        showFilters={false}
-        showPagination={true}
-      />
     </div>
   );
 }

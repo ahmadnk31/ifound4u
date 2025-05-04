@@ -34,6 +34,7 @@ interface LocationInputProps {
   value?: LocationData | null;
   required?: boolean;
   placeholder?: string;
+  onBlur?: () => void;
 }
 
 export function AddressAutocomplete({
@@ -43,6 +44,7 @@ export function AddressAutocomplete({
   value,
   required = false,
   placeholder = "Search for a location...",
+  onBlur,
 }: LocationInputProps) {
   const [address, setAddress] = useState(value?.address || "");
 
@@ -58,6 +60,24 @@ export function AddressAutocomplete({
 
     setAddress(location.address);
     onChange(location);
+  };
+
+  // Handle blur event for manually typed addresses
+  const handleBlur = (event: React.FocusEvent<HTMLInputElement>) => {
+    // If there's text but no coordinates, set default coordinates
+    if (event.target.value && (!value?.latitude || !value?.longitude)) {
+      const manualLocation = {
+        address: event.target.value,
+        latitude: 0,
+        longitude: 0,
+      };
+      onChange(manualLocation);
+    }
+    
+    // Call the parent's onBlur if provided
+    if (onBlur) {
+      onBlur();
+    }
   };
 
   return (
@@ -89,6 +109,8 @@ export function AddressAutocomplete({
             defaultValue={address}
             placeholder={placeholder}
             className='border-input flex h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none pl-10'
+            onBlur={handleBlur}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAddress(e.target.value)}
           />
         
       </div>

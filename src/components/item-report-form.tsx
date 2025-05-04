@@ -105,6 +105,19 @@ export function ItemReportForm() {
   const reportType = form.watch("type");
   const isAuthenticated = form.watch("contactInfo.isAuthenticated");
 
+  // Add handleBlur function to handle manual address entry
+  const handleBlur = () => {
+    const location = form.getValues("location");
+    if (location.address && (!location.latitude || !location.longitude)) {
+      // If address exists but coordinates don't, set default coordinates
+      form.setValue("location", {
+        ...location,
+        latitude: location.latitude || 0,
+        longitude: location.longitude || 0,
+      });
+    }
+  };
+
   // Check if user is authenticated
   React.useEffect(() => {
     const checkAuth = async () => {
@@ -132,6 +145,7 @@ export function ItemReportForm() {
 
   const onSubmit = async (values: ItemReportFormValues) => {
     try {
+      console.log("Form submission triggered with values:", values);
       setIsSubmitting(true);
 
       // Don't proceed if the image was flagged by moderation
@@ -375,14 +389,12 @@ export function ItemReportForm() {
           name='location'
           render={({ field }) => (
             <FormItem>
+              <FormLabel>Location</FormLabel>
               <FormControl>
-                <LocationInput
-                  onChange={(location) => {
-                    field.onChange(location);
-                  }}
+                <AddressAutocomplete
                   value={field.value}
-                  label='Location'
-                  description='Where did you lose or find the item?'
+                  onChange={field.onChange}
+                  onBlur={() => form.trigger("location")}
                 />
               </FormControl>
               <FormMessage />

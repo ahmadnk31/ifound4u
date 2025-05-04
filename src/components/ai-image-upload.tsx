@@ -12,7 +12,6 @@ import {
   FormLabel,
   FormMessage,
 } from "./ui/form";
-import { OpenAI } from "openai";
 import { createClient } from "@/lib/client";
 import Image from "next/image";
 
@@ -51,10 +50,6 @@ export function AIImageUpload({
   const [files, setFiles] = useState<FileWithPreview[]>([]);
 
   const supabase = createClient();
-  const openaiClient = new OpenAI({
-    apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
-    dangerouslyAllowBrowser: true,
-  });
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     setFiles(
@@ -91,49 +86,33 @@ export function AIImageUpload({
     setModerationStatus("pending");
 
     try {
-      // Generate description using OpenAI Vision
-      const descriptionResponse = await openaiClient.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "system",
-            content:
-              "You are a helpful assistant that describes lost and found items in detail.",
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Describe this item in detail as if for a lost and found listing. Include color, brand if visible, condition, and any distinguishing features. Keep it under 200 words.",
-              },
-              { type: "image_url", image_url: { url: imageUrl } },
-            ],
-          },
-        ],
+      // Use the new API route for image analysis
+      const response = await fetch("/api/image-analysis", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ imageUrl }),
       });
 
-      const description =
-        descriptionResponse.choices[0]?.message?.content || "";
-      setGeneratedDescription(description);
-      onDescriptionGenerated(description);
-
-      // Perform content moderation
-      const moderationResponse = await openaiClient.moderations.create({
-        input: "Analyze this image at: " + imageUrl,
-      });
-
-      const isFlagged = moderationResponse.results?.[0]?.flagged || false;
-
-      if (isFlagged) {
-        setModerationStatus("rejected");
-        onModerationResult(false);
-      } else {
-        setModerationStatus("approved");
-        onModerationResult(true);
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
       }
+
+      const data = await response.json();
+
+      // Set the generated description
+      setGeneratedDescription(data.description);
+      onDescriptionGenerated(data.description);
+
+      // Handle moderation result
+      const isApproved = data.moderation.approved;
+      setModerationStatus(isApproved ? "approved" : "rejected");
+      onModerationResult(isApproved);
     } catch (error) {
       console.error("Error analyzing image:", error);
+      setModerationStatus("rejected");
+      onModerationResult(false);
     } finally {
       setIsAnalyzing(false);
     }
