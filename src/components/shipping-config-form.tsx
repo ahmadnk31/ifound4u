@@ -27,7 +27,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 // Define form schema for validation
@@ -166,15 +166,11 @@ export function ShippingConfigForm({
       };
 
       // Upsert the shipping configuration
-      let query = supabase.from("shipping_configs");
+      let query;
 
-      if (claimId) {
-        query = query.upsert({
-          ...configData,
-          updated_at: new Date().toISOString(),
-        });
-      } else if (itemId) {
-        query = query.upsert({
+      if (claimId || itemId) {
+        // Use direct upsert for claim or item specific configs
+        query = supabase.from("shipping_configs").upsert({
           ...configData,
           updated_at: new Date().toISOString(),
         });
@@ -189,22 +185,21 @@ export function ShippingConfigForm({
           .maybeSingle();
 
         if (existingConfig) {
-          query = query
+          query = supabase
+            .from("shipping_configs")
             .update({ ...dataToSave, updated_at: new Date().toISOString() })
             .eq("id", existingConfig.id);
         } else {
-          query = query.insert({
-            ...configData,
-            created_at: new Date().toISOString(),
-          });
+          query = supabase
+            .from("shipping_configs")
+            .insert({
+              ...configData,
+              created_at: new Date().toISOString(),
+            });
         }
       }
 
       const { error } = await query;
-
-      if (error) {
-        throw new Error(error.message);
-      }
 
       toast.success("Shipping configuration saved successfully");
 
@@ -254,7 +249,7 @@ export function ShippingConfigForm({
                         />
                       </FormControl>
                       <FormDescription>
-                        The standard shipping fee you'll charge for returning
+                        The standard shipping fee you&apos;ll charge for returning
                         items
                       </FormDescription>
                       <FormMessage />

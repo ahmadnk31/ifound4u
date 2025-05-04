@@ -43,7 +43,6 @@ async function ensureVerificationTable() {
     .from("verification_codes")
     .select("*")
     .limit(1)
-    .catch(() => ({ error: { message: "Table does not exist" } }));
 
   if (error) {
     try {
@@ -211,11 +210,7 @@ export async function verifyEmailCode(code: string) {
       .from("verification_codes")
       .select("*")
       .eq("code", code)
-      .single()
-      .catch(() => ({
-        data: null,
-        error: { message: "Verification code not found" },
-      }));
+      .single();
 
     if (fetchError || !verification) {
       return { success: false, message: "Invalid verification code" };
