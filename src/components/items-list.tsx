@@ -37,25 +37,19 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
-import { LoadScript, GoogleMap, Circle, Marker } from "@react-google-maps/api";
-import { Checkbox } from "@/components/ui/checkbox";
+import { GoogleMap, Circle, Marker } from "@react-google-maps/api";
+import { LocationInput } from "@/components/location-input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { useGoogleMapsReady, GOOGLE_MAPS_LIBRARIES } from "@/lib/google-maps-context";
+
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 
 // Google Maps API key
 const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
-// Libraries for Google Maps
-const GOOGLE_MAPS_LIBRARIES = ["places", "geometry"];
 
 // Default map settings
 const DEFAULT_CENTER = { lat: 34.0522, lng: -118.2437 }; // Los Angeles
@@ -128,10 +122,10 @@ export function ItemsList({
 
   // References for map components
   const mapRef = useRef<google.maps.Map | null>(null);
-  const circleRef = useRef<google.maps.Circle | null>(null);
-  const markerRef = useRef<google.maps.Marker | null>(null);
 
   const supabase = createClient();
+
+  const googleMapsReady = useGoogleMapsReady();
 
   // Function to detect user's current location
   const getUserLocation = () => {
@@ -531,64 +525,107 @@ export function ItemsList({
                 </Button>
               </DialogTrigger>
               <DialogContent
-                className='w-full max-w-4xl max-h-[90vh] overflow-y-auto'
-                style={{ height: "auto", maxHeight: "90vh" }}
+                className='w-full max-w-lg sm:max-w-2xl max-h-[80vh] overflow-y-auto'
+                style={{ height: "auto", maxHeight: "80vh" }}
               >
-                <DialogHeader>
-                  <DialogTitle>Find Items by Location</DialogTitle>
-                  <DialogDescription>
-                    Set a location and radius to search for items. Drag the
-                    marker or click on the map to adjust the center point.
+                <DialogHeader className='space-y-1'>
+                  <DialogTitle className='text-lg'>Location Filter</DialogTitle>
+                  <DialogDescription className='text-xs'>
+                    Search for a location or use the map to set your search area
                   </DialogDescription>
                 </DialogHeader>
 
-                <div className='flex flex-col md:flex-row gap-4'>
+                {/* Location search using LocationInput with proper styling */}
+                <div className='mb-4 dialog-location-input'>
+                  <LocationInput
+                    label=''
+                    placeholder='Search for a location (e.g., city, address)'
+                    onChange={(location) => {
+                      if (location) {
+                        const newLocation = {
+                          lat: location.latitude,
+                          lng: location.longitude,
+                        };
+
+                        // Update location filter with new coordinates
+                        setLocationFilter((prev) => ({
+                          ...prev,
+                          center: newLocation,
+                          enabled: true,
+                        }));
+
+                        // Update map view
+                        if (mapRef.current) {
+                          mapRef.current.panTo(newLocation);
+                          mapRef.current.setZoom(14);
+                        }
+
+                        toast.success("Location found: " + location.address);
+                      }
+                    }}
+                  />
+                </div>
+
+                <div className='mb-4'>
+                  <Button
+                    variant='outline'
+                    className='w-full flex items-center gap-2 justify-center'
+                    onClick={getUserLocation}
+                  >
+                    <LocateFixed className='h-4 w-4' />
+                    <span>Use my location</span>
+                  </Button>
+                </div>
+
+                <div className='flex flex-col md:flex-row gap-3'>
                   {/* Map Area */}
-                  <div className='flex-1 h-[350px] md:h-[500px] relative rounded-md overflow-hidden border border-muted'>
+                  <div className='flex-1 h-[250px] md:h-[320px] relative rounded-md overflow-hidden border border-muted'>
                     {!mapLoaded && (
                       <div className='absolute inset-0 flex items-center justify-center bg-muted/20 rounded-md'>
                         <div className='flex flex-col items-center gap-2'>
-                          <Loader2 className='h-8 w-8 animate-spin text-primary' />
-                          <p className='text-sm text-muted-foreground'>
+                          <Loader2 className='h-6 w-6 animate-spin text-primary' />
+                          <p className='text-xs text-muted-foreground'>
                             Loading map...
                           </p>
                         </div>
                       </div>
                     )}
 
-                    <GoogleMap
-                      mapContainerStyle={{
-                        width: "100%",
-                        height: "100%",
-                      }}
-                      center={locationFilter.center}
-                      zoom={DEFAULT_ZOOM}
-                      onLoad={handleMapLoad}
-                      options={{
-                        fullscreenControl: false,
-                        streetViewControl: false,
-                        mapTypeControl: true,
-                        zoomControl: true,
-                        gestureHandling: "greedy", // Makes the map more responsive to user interaction
-                      }}
-                    >
-                      <Marker
-                        position={locationFilter.center}
-                        draggable={true}
-                        onDragEnd={handleMarkerDrag}
-                      />
-                      <Circle
-                        center={locationFilter.center}
-                        radius={locationFilter.radius * 1000} // Convert km to meters
-                        options={{
-                          fillColor: "rgba(66, 133, 244, 0.2)",
-                          fillOpacity: 0.4,
-                          strokeColor: "rgba(66, 133, 244, 0.8)",
-                          strokeOpacity: 0.8,
-                          strokeWeight: 2,
+                    {googleMapsReady.isLoaded && (
+                      <GoogleMap
+                        mapContainerStyle={{
+                          width: "100%",
+                          height: "100%",
                         }}
-                      />
-                    </GoogleMap>
+                        center={locationFilter.center}
+                        zoom={DEFAULT_ZOOM}
+                        onLoad={handleMapLoad}
+                        options={{
+                          fullscreenControl: false,
+                          streetViewControl: false,
+                          mapTypeControl: true,
+                          zoomControl: true,
+                          gestureHandling: "greedy",
+                        }}
+                      >
+                        <Marker
+                          position={locationFilter.center}
+                          draggable={true}
+                          onDragEnd={handleMarkerDrag}
+                        />
+                        <Circle
+                          center={locationFilter.center}
+                          radius={locationFilter.radius * 1000}
+                          options={{
+                            fillColor: "rgba(66, 133, 244, 0.2)",
+                            fillOpacity: 0.4,
+                            strokeColor: "rgba(66, 133, 244, 0.8)",
+                            strokeOpacity: 0.8,
+                            strokeWeight: 2,
+                          }}
+                        />
+                      </GoogleMap>
+                    )}
                   </div>
 
                   {/* Controls Area */}
@@ -722,35 +759,70 @@ export function ItemsList({
 
           {/* Active filters display */}
           {(type !== "all" || category !== "all" || locationFilter.enabled) && (
-            <div className='flex flex-wrap gap-2 pt-1'>
+            <div className='flex flex-wrap gap-2 pt-2'>
               {type !== "all" && (
-                <Badge variant='secondary' className='flex items-center gap-1'>
+                <Badge
+                  variant='secondary'
+                  className='flex items-center gap-1.5 px-3 py-1 h-7 hover:bg-secondary/80'
+                >
                   {type === "lost" ? "Lost Items" : "Found Items"}
-                  <X
-                    className='h-3 w-3 cursor-pointer'
-                    onClick={() => setType("all")}
-                  />
+                  <button
+                    onClick={() => {
+                      setType("all");
+                      fetchItems(1, true);
+                    }}
+                    className='ml-1 rounded-full hover:bg-accent p-0.5'
+                    aria-label='Remove filter'
+                  >
+                    <X className='h-3.5 w-3.5 hover:text-destructive transition-colors' />
+                  </button>
                 </Badge>
               )}
 
               {category !== "all" && (
-                <Badge variant='secondary' className='flex items-center gap-1'>
+                <Badge
+                  variant='secondary'
+                  className='flex items-center gap-1.5 px-3 py-1 h-7 hover:bg-secondary/80'
+                >
                   {itemCategories.find((cat) => cat.value === category)
                     ?.label || category}
-                  <X
-                    className='h-3 w-3 cursor-pointer'
-                    onClick={() => setCategory("all")}
-                  />
+                  <button
+                    onClick={() => {
+                      setCategory("all");
+                      fetchItems(1, true);
+                    }}
+                    className='ml-1 rounded-full hover:bg-accent p-0.5'
+                    aria-label='Remove filter'
+                  >
+                    <X className='h-3.5 w-3.5 hover:text-destructive transition-colors' />
+                  </button>
                 </Badge>
               )}
 
               {locationFilter.enabled && (
-                <Badge variant='secondary' className='flex items-center gap-1'>
-                  Location: {locationFilter.radius}km radius
-                  <X
-                    className='h-3 w-3 cursor-pointer'
-                    onClick={toggleLocationFilter}
-                  />
+                <Badge
+                  variant='secondary'
+                  className='flex items-center gap-1.5 px-3 py-1 h-7 hover:bg-secondary/80'
+                >
+                  <MapPin className='h-3 w-3' />
+                  {locationFilter.radius}km radius
+                  <button
+                    onClick={() => {
+                      setLocationFilter((prev) => ({
+                        ...prev,
+                        enabled: false,
+                      }));
+                      setAdvancedFilters((prev) => ({
+                        ...prev,
+                        useLocationFilter: false,
+                      }));
+                      fetchItems(1, true);
+                    }}
+                    className='ml-1 rounded-full hover:bg-accent p-0.5'
+                    aria-label='Remove location filter'
+                  >
+                    <X className='h-3.5 w-3.5 hover:text-destructive transition-colors' />
+                  </button>
                 </Badge>
               )}
             </div>
@@ -785,7 +857,7 @@ export function ItemsList({
           </div>
           <p className='text-lg font-medium mb-1'>No items found</p>
           <p className='text-muted-foreground max-w-md'>
-            Try adjusting your filters or search query to find what you're
+            Try adjusting your filters or search query to find what you&apos;re
             looking for
           </p>
         </div>

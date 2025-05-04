@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/navbar";
 import { Toaster } from "@/components/ui/sonner";
+import { GoogleMapsProvider } from "@/lib/google-maps-context";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,9 +30,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Navbar />
-        <main>{children}</main>
-        <Toaster />
+        <GoogleMapsProvider>
+          <Navbar />
+          <main>{children}</main>
+          <Toaster />
+        </GoogleMapsProvider>
       </body>
     </html>
   );

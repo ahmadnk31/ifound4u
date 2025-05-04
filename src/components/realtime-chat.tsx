@@ -6,13 +6,15 @@ import { useChatScroll } from "@/hooks/use-chat-scroll";
 import { type ChatMessage, useRealtimeChat } from "@/hooks/use-realtime-chat";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, DollarSign, CreditCard } from "lucide-react";
+import { Send, DollarSign, CreditCard, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { ShippingPaymentWrapper } from "./shipping-payment-form";
 import { SetupPaymentAccount } from "./setup-payment-account";
 import { createClient } from "@/lib/client";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {useMediaQuery} from "@/hooks/use-mobile";
 
 interface RealtimeChatProps {
   roomName: string;
@@ -37,6 +39,7 @@ export const RealtimeChat = ({
 }: RealtimeChatProps) => {
   const { containerRef, scrollToBottom } = useChatScroll();
   const supabase = createClient();
+  const isMobile = useMediaQuery("(max-width: 640px)");
 
   const {
     messages: realtimeMessages,
@@ -69,6 +72,7 @@ export const RealtimeChat = ({
   const [isCheckingStripeAccount, setIsCheckingStripeAccount] = useState(false);
   const [needsSetupPayment, setNeedsSetupPayment] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [isInputFocused, setIsInputFocused] = useState(false);
 
   // Add a new function to check finder's account status against Stripe API
   const checkFinderAccountWithStripe = useCallback(async (finderId: string) => {
@@ -165,21 +169,6 @@ export const RealtimeChat = ({
         .select("id, user_id, title")
         .eq("id", claim.item_id)
         .single();
-      console.log("item", item);
-      console.log("itemError", itemError);
-      // Check if the item exists and has a user ID
-
-      const founderId = item?.user_id;
-      console.log("founderId", founderId);
-
-      if (founderId) {
-        const founderAccountStatu = await supabase
-          .from("user_payment_accounts")
-          .select("account_enabled")
-          .eq("user_id", founderId)
-          .single();
-        console.log("founderAccountStatus", founderAccountStatu);
-      }
 
       if (itemError || !item) {
         console.error("Error finding item:", itemError);
@@ -435,10 +424,8 @@ export const RealtimeChat = ({
                   // Only show shipping tab if the account is already set up
                   setShowSetupPaymentForm(true);
                 }
-              } else if (!needsSetup) {
-                // If claim-specific config exists and account is set up, still allow editing
-                setShowSetupPaymentForm(true);
               } else {
+                // If claim-specific config exists and account is set up, still allow editing
                 setShowSetupPaymentForm(true);
               }
             }
@@ -478,8 +465,17 @@ export const RealtimeChat = ({
 
       sendMessage(newMessage);
       setNewMessage("");
+
+      // On mobile, blur the input after sending to hide the keyboard
+      if (isMobile) {
+        // Find the active element and blur it if it's an input
+        const activeElement = document.activeElement;
+        if (activeElement instanceof HTMLInputElement) {
+          activeElement.blur();
+        }
+      }
     },
-    [newMessage, isConnected, sendMessage]
+    [newMessage, isConnected, sendMessage, isMobile]
   );
 
   const handlePaymentComplete = useCallback(() => {
@@ -488,7 +484,7 @@ export const RealtimeChat = ({
     toast.success(
       "Payment completed! Your message has been sent to the other user."
     );
-  }, [sendMessage, toast]);
+  }, [sendMessage]);
 
   const handlePaymentCancel = useCallback(() => {
     setShowPaymentForm(false);
@@ -536,9 +532,11 @@ export const RealtimeChat = ({
     >
       {/* Setup payment account banner for finders */}
       {needsSetupPayment && !claimInfo?.isUserClaimer && (
-        <Alert className='m-2 mb-0 bg-muted/50'>
+        <Alert className='m-2 mb-0 bg-muted/50 rounded-md shadow-sm'>
           <CreditCard className='h-4 w-4' />
-          <AlertTitle>Payment account setup required</AlertTitle>
+          <AlertTitle className='font-medium'>
+            Payment account setup required
+          </AlertTitle>
           <AlertDescription className='flex flex-col gap-2'>
             <span>
               You need to set up a payment account to receive shipping fees from
@@ -557,74 +555,76 @@ export const RealtimeChat = ({
       )}
 
       {/* Messages */}
-      <div ref={containerRef} className='flex-1 overflow-y-auto p-4 space-y-4'>
-        {unreadCount > 0 && (
-          <div
-            className='sticky top-2 z-10 text-center mx-auto mb-2'
-            onClick={markMessagesAsRead}
-          >
-            <div className='inline-flex items-center px-3 py-1 rounded-full bg-primary text-primary-foreground text-xs font-medium shadow-sm cursor-pointer hover:bg-primary/90 transition-colors'>
-              {unreadCount} new {unreadCount === 1 ? "message" : "messages"}
+      <ScrollArea className='flex-1 p-4 space-y-4'>
+        <div ref={containerRef} className='min-h-full'>
+          {unreadCount > 0 && (
+            <div
+              className='sticky top-2 z-10 text-center mx-auto mb-2'
+              onClick={markMessagesAsRead}
+            >
+              <div className='inline-flex items-center px-3 py-1 rounded-full bg-primary text-primary-foreground text-xs font-medium shadow-sm cursor-pointer hover:bg-primary/90 transition-colors'>
+                {unreadCount} new {unreadCount === 1 ? "message" : "messages"}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {showPaymentForm ? (
-          <div className='w-full py-4'>
-            <ShippingPaymentWrapper
-              claimId={claimInfo?.id || ""}
-              itemTitle={claimInfo?.itemTitle || ""}
-              onComplete={handlePaymentComplete}
-              onCancel={handlePaymentCancel}
-            />
-          </div>
-        ) : showSetupPaymentForm ? (
-          <div className='w-full py-4'>
-            <SetupPaymentAccount onComplete={handleSetupComplete} />
-          </div>
-        ) : isLoading ? (
-          <div className='flex items-center justify-center h-full'>
-            <div className='flex flex-col items-center'>
-              <div className='animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary'></div>
-              <p className='mt-2 text-sm text-muted-foreground'>
-                Loading messages...
+          {showPaymentForm ? (
+            <div className='w-full py-4'>
+              <ShippingPaymentWrapper
+                claimId={claimInfo?.id || ""}
+                itemTitle={claimInfo?.itemTitle || ""}
+                onComplete={handlePaymentComplete}
+                onCancel={handlePaymentCancel}
+              />
+            </div>
+          ) : showSetupPaymentForm ? (
+            <div className='w-full py-4'>
+              <SetupPaymentAccount onComplete={handleSetupComplete} />
+            </div>
+          ) : isLoading ? (
+            <div className='flex items-center justify-center h-full'>
+              <div className='flex flex-col items-center'>
+                <div className='animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary'></div>
+                <p className='mt-2 text-sm text-muted-foreground'>
+                  Loading messages...
+                </p>
+              </div>
+            </div>
+          ) : error ? (
+            <div className='text-center py-4 text-destructive'>
+              <p className='mb-2 font-medium'>{error}</p>
+              <p className='text-sm text-muted-foreground'>
+                Please try refreshing the page.
               </p>
             </div>
-          </div>
-        ) : error ? (
-          <div className='text-center py-4 text-destructive'>
-            <p className='mb-2 font-medium'>{error}</p>
-            <p className='text-sm text-muted-foreground'>
-              Please try refreshing the page.
-            </p>
-          </div>
-        ) : allMessages.length === 0 ? (
-          <div className='text-center text-sm text-muted-foreground'>
-            No messages yet. Start the conversation!
-          </div>
-        ) : (
-          <div className='space-y-1'>
-            {allMessages.map((message, index) => {
-              const prevMessage = index > 0 ? allMessages[index - 1] : null;
-              const showHeader =
-                !prevMessage || prevMessage.user.name !== message.user.name;
+          ) : allMessages.length === 0 ? (
+            <div className='text-center text-sm text-muted-foreground py-8'>
+              No messages yet. Start the conversation!
+            </div>
+          ) : (
+            <div className='space-y-1'>
+              {allMessages.map((message, index) => {
+                const prevMessage = index > 0 ? allMessages[index - 1] : null;
+                const showHeader =
+                  !prevMessage || prevMessage.user.name !== message.user.name;
 
-              return (
-                <div
-                  key={message.id}
-                  className='animate-in fade-in slide-in-from-bottom-4 duration-300'
-                >
-                  <ChatMessageItem
-                    message={message}
-                    isOwnMessage={message.user.name === username}
-                    showHeader={showHeader}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                return (
+                  <div
+                    key={message.id}
+                    className='animate-in fade-in slide-in-from-bottom-4 duration-300'
+                  >
+                    <ChatMessageItem
+                      message={message}
+                      isOwnMessage={message.user.name === username}
+                      showHeader={showHeader}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </ScrollArea>
 
       {/* Payment Button or Chat Input */}
       {showPaymentButton ? (
@@ -657,9 +657,16 @@ export const RealtimeChat = ({
           {claimInfo?.status === "accepted" && (
             <Button
               onClick={refreshFinderStatus}
-              className='w-full gap-2'
+              className='w-full gap-2 mb-3'
               disabled={isCheckingStripeAccount}
+              variant='outline'
             >
+              <RefreshCw
+                className={cn(
+                  "size-4 mr-2",
+                  isCheckingStripeAccount && "animate-spin"
+                )}
+              />
               Refresh Finder Status
             </Button>
           )}
@@ -676,8 +683,16 @@ export const RealtimeChat = ({
               type='text'
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
-              placeholder='Type a message...'
-              disabled={!isConnected || isLoading || !!error || showPaymentForm}
+              placeholder={
+                isLoading
+                  ? "Loading messages..."
+                  : error
+                  ? "Try refreshing the page"
+                  : "Type a message..."
+              }
+              onFocus={() => setIsInputFocused(true)}
+              onBlur={() => setIsInputFocused(false)}
+              disabled={!isConnected || showPaymentForm}
             />
 
             {isConnected && newMessage.trim() && (
@@ -694,7 +709,10 @@ export const RealtimeChat = ({
       ) : (
         <form
           onSubmit={handleSendMessage}
-          className='flex w-full gap-2 border-t border-border p-4'
+          className={cn(
+            "flex w-full gap-2 border-t border-border p-4",
+            isMobile && isInputFocused && "sticky bottom-0 bg-background"
+          )}
         >
           <Input
             className={cn(
@@ -717,6 +735,8 @@ export const RealtimeChat = ({
                 ? "Try refreshing the page"
                 : "Type a message..."
             }
+            onFocus={() => setIsInputFocused(true)}
+            onBlur={() => setIsInputFocused(false)}
             disabled={
               !isConnected ||
               isLoading ||

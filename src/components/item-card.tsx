@@ -182,12 +182,9 @@ export function ItemCard({
           </div>
         </CardHeader>
 
-        <CardContent className='px-5 pb-4'>
-          <div className='space-y-4'>
-            <p className='text-sm text-muted-foreground line-clamp-3'>
-              {item.description}
-            </p>
-
+        <CardContent className='px-5'>
+          <div className=''>
+          
             <div className='text-sm flex items-start gap-2'>
               <MapPin className='h-4 w-4 shrink-0 mt-0.5 text-muted-foreground' />
               <span className='text-sm'>{item.location_address}</span>
@@ -219,7 +216,7 @@ export function ItemCard({
           </div>
         </CardContent>
 
-        <CardFooter className='flex gap-2 justify-between px-5 py-4 bg-accent/10'>
+        <CardFooter className='flex gap-2 justify-between px-5 bg-accent/10'>
           <div className='text-xs text-muted-foreground'>
             Posted {format(new Date(item.created_at), "PPP")}
           </div>

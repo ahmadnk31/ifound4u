@@ -199,7 +199,7 @@ export function Navbar() {
       {/* Mobile navigation menu */}
       {isMenuOpen && (
         <div className='fixed inset-0 top-16 z-50 bg-background/98 backdrop-blur md:hidden border-t border-border/30'>
-          <div className='container py-8 px-6 space-y-8'>
+          <div className='container py-8 px-6 bg-white space-y-8'>
             <div className='grid gap-5'>
               {navigationItems.map((item) => (
                 <Link

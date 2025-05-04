@@ -1,8 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
-import { LoadScript } from "@react-google-maps/api";
-import Autocomplete from "react-google-autocomplete";
+import React, { useState, useEffect, useRef } from "react";
 import { Label } from "@/components/ui/label";
 import {
   FormControl,
@@ -12,13 +10,7 @@ import {
   FormMessage,
 } from "./ui/form";
 import { MapPin } from "lucide-react";
-
-// Make sure to get an API key for Google Maps from your Google Cloud Console
-// and add it to your .env.local file
-const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
-
-// Define libraries array outside component to prevent unnecessary reloads
-const GOOGLE_MAPS_LIBRARIES = ["places"];
+import { useGoogleMapsReady } from "@/lib/google-maps-context";
 
 interface LocationData {
   address: string;
@@ -45,19 +37,66 @@ export function LocationInput({
   placeholder = "Search for a location...",
 }: LocationInputProps) {
   const [address, setAddress] = useState(value?.address || "");
+  const { isLoaded } = useGoogleMapsReady();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  const handlePlaceSelect = (place: google.maps.places.PlaceResult) => {
-    if (!place.geometry?.location) return;
+  useEffect(() => {
+    // Update the input value when the value prop changes
+    if (value?.address !== undefined) {
+      setAddress(value.address);
+    }
+  }, [value?.address]);
 
-    const location = {
-      address: place.formatted_address || "",
-      latitude: place.geometry.location.lat(),
-      longitude: place.geometry.location.lng(),
-      placeId: place.place_id,
+  useEffect(() => {
+    // Initialize Google Maps autocomplete when the map is loaded and input is available
+    if (isLoaded && inputRef.current && !isInitialized) {
+      // Create the autocomplete instance
+      const options = {
+        types: ["geocode", "establishment"],
+        fields: ["formatted_address", "geometry", "place_id", "name"],
+      };
+
+      autocompleteRef.current = new google.maps.places.Autocomplete(
+        inputRef.current,
+        options
+      );
+
+      // Add event listener for place selection
+      autocompleteRef.current.addListener("place_changed", () => {
+        const place = autocompleteRef.current?.getPlace();
+        if (place && place.geometry?.location) {
+          const location = {
+            address: place.formatted_address || place.name || "",
+            latitude: place.geometry.location.lat(),
+            longitude: place.geometry.location.lng(),
+            placeId: place.place_id,
+          };
+
+          setAddress(location.address);
+          onChange(location);
+        }
+      });
+
+      setIsInitialized(true);
+    }
+
+    // Clean up
+    return () => {
+      if (autocompleteRef.current && isLoaded) {
+        google.maps.event.clearInstanceListeners(autocompleteRef.current);
+      }
     };
+  }, [isLoaded, onChange, isInitialized]);
 
-    setAddress(location.address);
-    onChange(location);
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAddress(e.target.value);
+
+    // Clear location if the user cleared the input field
+    if (e.target.value === "" && value) {
+      onChange(null);
+    }
   };
 
   return (
@@ -70,30 +109,28 @@ export function LocationInput({
       )}
 
       <div className='relative'>
-        <div className='absolute left-3 top-1/2 -translate-y-1/2 text-gray-500'>
+        <div className='absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 z-10'>
           <MapPin size={18} />
         </div>
 
-        <LoadScript
-          googleMapsApiKey={GOOGLE_MAPS_API_KEY}
-          libraries={GOOGLE_MAPS_LIBRARIES}
-        >
-          <Autocomplete
-            apiKey={GOOGLE_MAPS_API_KEY}
-            style={{
-              width: "100%",
-              paddingLeft: "2.5rem",
-            }}
-            onPlaceSelected={handlePlaceSelect}
-            options={{
-              types: ["geocode", "establishment"],
-             
-            }}
-            defaultValue={address}
+        {isLoaded ? (
+          <input
+            ref={inputRef}
+            id='location-input'
+            type='text'
+            value={address}
+            onChange={handleInputChange}
             placeholder={placeholder}
-            className='border-input flex h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none pl-10'
+            className='border-input flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-colors outline-none focus:ring-2 focus:ring-ring focus:border-input pl-10'
           />
-        </LoadScript>
+        ) : (
+          <input
+            type='text'
+            placeholder='Loading maps...'
+            disabled
+            className='border-input flex h-9 w-full rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-colors outline-none pl-10 opacity-70'
+          />
+        )}
       </div>
 
       {description && (
@@ -121,7 +158,15 @@ export function FormLocationInput(props: FormLocationInputProps) {
         {props.required && " *"}
       </FormLabel>
       <FormControl>
-        <LocationInput {...props} onChange={props.onChange || (() => {})} />
+        <LocationInput
+          {...props}
+          onChange={
+            props.onChange ||
+            (() => {
+              console.log("onChange not implemented");
+            })
+          }
+        />
       </FormControl>
       {props.description && (
         <FormDescription>{props.description}</FormDescription>

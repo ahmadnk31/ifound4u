@@ -21,7 +21,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { formatAmountForDisplay, getStripe } from "@/lib/stripe";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 // Load Stripe outside of the component to avoid recreation
@@ -29,6 +29,9 @@ const stripePromise = getStripe();
 // Check if Stripe is initialized properly
 const isStripeReady = stripePromise !== null;
 
+/**
+ * Interface representing a shipping address
+ */
 interface ShippingAddress {
   line1: string;
   line2?: string;
@@ -38,11 +41,28 @@ interface ShippingAddress {
   country: string;
 }
 
+/**
+ * Base interface for shipping payment form props
+ */
 interface ShippingPaymentFormProps {
   claimId: string;
   itemTitle: string;
   onComplete: () => void;
   onCancel: () => void;
+}
+
+/**
+ * Shipping configuration interface
+ */
+interface ShippingConfig {
+  default_shipping_fee: number;
+  allow_claimer_custom: boolean;
+  min_shipping_fee: number;
+  max_shipping_fee: number;
+  allow_tipping: boolean;
+  shipping_notes?: string;
+  isDefaultConfig?: boolean;
+  isSystemDefault?: boolean;
 }
 
 // Wrapper component that provides Stripe Elements
@@ -56,7 +76,7 @@ export function ShippingPaymentWrapper({
 
   if (!isStripeReady) {
     return (
-      <Card className='w-full max-w-md mx-auto'>
+      <Card className='w-full max-w-lg mx-auto shadow-md'>
         <CardHeader>
           <CardTitle>Payment Error</CardTitle>
           <CardDescription>
@@ -83,7 +103,7 @@ export function ShippingPaymentWrapper({
   }
 
   return (
-    <div className='w-full max-w-md mx-auto'>
+    <div className='w-full max-w-lg mx-auto'>
       {clientSecret ? (
         <Elements stripe={stripePromise} options={{ clientSecret }}>
           <ShippingPaymentForm
@@ -132,30 +152,30 @@ function ShippingPaymentSetup({
     postalCode: "",
     country: "US",
   });
-  const [shippingConfig, setShippingConfig] = useState<{
-    default_shipping_fee: number;
-    allow_claimer_custom: boolean;
-    min_shipping_fee: number;
-    max_shipping_fee: number;
-    allow_tipping: boolean;
-    shipping_notes?: string;
-    isDefaultConfig?: boolean;
-    isSystemDefault?: boolean;
-  } | null>(null);
+  const [shippingConfig, setShippingConfig] = useState<ShippingConfig | null>(
+    null
+  );
+  const [configError, setConfigError] = useState<string | null>(null);
 
   // Fetch shipping configuration when the component mounts
   useEffect(() => {
     const fetchShippingConfig = async () => {
       setIsLoadingConfig(true);
+      setConfigError(null);
+
       try {
         const response = await fetch(
-          `/api/stripe/shipping-config?claimId=${claimId}`
+          `/api/stripe/shipping-config?claimId=${encodeURIComponent(claimId)}`
         );
 
         if (!response.ok) {
           const errorData = await response.json();
           console.error("Error loading shipping config:", errorData);
-          // Use default values if config can't be loaded
+          setConfigError(
+            "Could not load shipping options. Using default values."
+          );
+          // Use default values
+          setShippingFee(500); // $5.00
           return;
         }
 
@@ -170,6 +190,9 @@ function ShippingPaymentSetup({
         }
       } catch (error) {
         console.error("Failed to fetch shipping configuration:", error);
+        setConfigError(
+          "Could not connect to the payment server. Please try again later."
+        );
       } finally {
         setIsLoadingConfig(false);
       }
@@ -216,6 +239,28 @@ function ShippingPaymentSetup({
     setAddress((prev) => ({ ...prev, [field]: value }));
   };
 
+  // Validate address fields
+  const validateAddress = (): boolean => {
+    if (!address.line1.trim()) {
+      toast.error("Please enter a street address");
+      return false;
+    }
+    if (!address.city.trim()) {
+      toast.error("Please enter a city");
+      return false;
+    }
+    if (!address.state.trim()) {
+      toast.error("Please enter a state");
+      return false;
+    }
+    if (!address.postalCode.trim()) {
+      toast.error("Please enter a postal code");
+      return false;
+    }
+    // Could add regex validation for postal code here
+    return true;
+  };
+
   // Calculate total amount
   const totalAmount = shippingFee + tipAmount;
   const platformFee = Math.round(totalAmount * 0.1); // 10% platform fee
@@ -223,13 +268,7 @@ function ShippingPaymentSetup({
   // Create payment intent when ready
   const handleContinue = async () => {
     // Validate shipping address
-    if (
-      !address.line1 ||
-      !address.city ||
-      !address.state ||
-      !address.postalCode
-    ) {
-      toast.error("Please fill in all required address fields.");
+    if (!validateAddress()) {
       return;
     }
 
@@ -299,14 +338,23 @@ function ShippingPaymentSetup({
   };
 
   return (
-    <Card className='w-full'>
+    <Card className='w-full shadow-md'>
       <CardHeader>
         <CardTitle>Pay for Shipping</CardTitle>
         <CardDescription>
-          Pay the shipping fee to have the item "{itemTitle}" sent to you.
+          Pay the shipping fee to have the item &quot;{itemTitle}&quot; sent to
+          you.
         </CardDescription>
       </CardHeader>
       <CardContent className='space-y-4'>
+        {configError && (
+          <Alert variant='warning' className='mb-4'>
+            <AlertCircle className='h-4 w-4' />
+            <AlertTitle>Configuration Issue</AlertTitle>
+            <AlertDescription>{configError}</AlertDescription>
+          </Alert>
+        )}
+
         <div className='space-y-2'>
           <Label htmlFor='shippingAddress'>Shipping Address</Label>
           <Input
@@ -314,6 +362,8 @@ function ShippingPaymentSetup({
             placeholder='Street Address'
             value={address.line1}
             onChange={(e) => handleAddressChange("line1", e.target.value)}
+            required
+            className='focus:border-primary'
           />
           <Input
             id='line2'
@@ -321,21 +371,23 @@ function ShippingPaymentSetup({
             value={address.line2}
             onChange={(e) => handleAddressChange("line2", e.target.value)}
           />
-          <div className='grid grid-cols-2 gap-2'>
+          <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
             <Input
               id='city'
               placeholder='City'
               value={address.city}
               onChange={(e) => handleAddressChange("city", e.target.value)}
+              required
             />
             <Input
               id='state'
               placeholder='State'
               value={address.state}
               onChange={(e) => handleAddressChange("state", e.target.value)}
+              required
             />
           </div>
-          <div className='grid grid-cols-2 gap-2'>
+          <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
             <Input
               id='postalCode'
               placeholder='Postal Code'
@@ -343,12 +395,14 @@ function ShippingPaymentSetup({
               onChange={(e) =>
                 handleAddressChange("postalCode", e.target.value)
               }
+              required
             />
             <Input
               id='country'
               placeholder='Country'
               value={address.country}
               onChange={(e) => handleAddressChange("country", e.target.value)}
+              required
             />
           </div>
         </div>
@@ -421,37 +475,58 @@ function ShippingPaymentSetup({
           </>
         )}
 
-        <div className='pt-2'>
+        <div className='pt-2 bg-muted/30 p-4 rounded-md'>
           <div className='flex justify-between text-sm'>
             <span>Shipping Fee:</span>
-            <span>{formatAmountForDisplay(shippingFee)}</span>
+            <span className='font-medium'>
+              {formatAmountForDisplay(shippingFee)}
+            </span>
           </div>
           {tipAmount > 0 && (
             <div className='flex justify-between text-sm'>
               <span>Tip:</span>
-              <span>{formatAmountForDisplay(tipAmount)}</span>
+              <span className='font-medium'>
+                {formatAmountForDisplay(tipAmount)}
+              </span>
             </div>
           )}
           <div className='flex justify-between text-sm'>
             <span>Platform Fee (10%):</span>
-            <span>{formatAmountForDisplay(platformFee)}</span>
+            <span className='font-medium'>
+              {formatAmountForDisplay(platformFee)}
+            </span>
           </div>
           <Separator className='my-2' />
           <div className='flex justify-between font-medium'>
             <span>Total:</span>
-            <span>{formatAmountForDisplay(totalAmount)}</span>
+            <span className='text-lg'>
+              {formatAmountForDisplay(totalAmount)}
+            </span>
           </div>
         </div>
       </CardContent>
-      <CardFooter className='flex justify-between'>
-        <Button variant='outline' onClick={onCancel} disabled={isLoading}>
+      <CardFooter className='flex flex-col sm:flex-row gap-2 justify-between'>
+        <Button
+          variant='outline'
+          onClick={onCancel}
+          disabled={isLoading}
+          className='w-full sm:w-auto'
+        >
           Cancel
         </Button>
         <Button
           onClick={handleContinue}
           disabled={isLoading || isLoadingConfig}
+          className='w-full sm:w-auto'
         >
-          {isLoading ? "Processing..." : "Continue to Payment"}
+          {isLoading ? (
+            <>
+              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+              Processing...
+            </>
+          ) : (
+            "Continue to Payment"
+          )}
         </Button>
       </CardFooter>
     </Card>
@@ -459,22 +534,25 @@ function ShippingPaymentSetup({
 }
 
 // Component to handle the actual payment using Stripe Elements
-interface ShippingPaymentFormProps extends ShippingPaymentFormProps {
+interface ShippingPaymentFormWithSecretProps extends ShippingPaymentFormProps {
   clientSecret: string;
 }
 
 function ShippingPaymentForm({
   clientSecret,
   itemTitle,
-  claimId, // Make sure claimId is used
+  claimId,
   onComplete,
   onCancel,
-}: ShippingPaymentFormProps & { clientSecret: string }) {
+}: ShippingPaymentFormWithSecretProps) {
   const stripe = useStripe();
   const elements = useElements();
   const [isLoading, setIsLoading] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState<
+    "idle" | "processing" | "success" | "error"
+  >("idle");
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -485,6 +563,7 @@ function ShippingPaymentForm({
 
     setIsLoading(true);
     setPaymentError(null);
+    setPaymentStatus("processing");
 
     try {
       const { error, paymentIntent } = await stripe.confirmPayment({
@@ -496,18 +575,15 @@ function ShippingPaymentForm({
       });
 
       if (error) {
+        setPaymentStatus("error");
         setPaymentError(
           error.message || "An error occurred while processing your payment"
         );
-        toast({
-          title: "Payment Failed",
-          description:
-            error.message || "An error occurred while processing your payment",
-          variant: "destructive",
-        });
+        toast.error(error.message || "Payment failed. Please try again.");
       } else if (paymentIntent) {
         if (paymentIntent.status === "succeeded") {
           // Payment succeeded immediately!
+          setPaymentStatus("success");
           toast.success("Payment completed successfully!");
           onComplete();
         } else if (paymentIntent.status === "processing") {
@@ -520,10 +596,12 @@ function ShippingPaymentForm({
           // Poll for payment status in case webhook is delayed
           checkPaymentStatus(claimId);
         } else if (paymentIntent.status === "requires_payment_method") {
+          setPaymentStatus("error");
           toast.error("Your payment was not successful, please try again.");
         }
       }
     } catch (error: any) {
+      setPaymentStatus("error");
       setPaymentError(error.message || "An unexpected error occurred");
       toast.error(
         error.message || "An unexpected error occurred while processing payment"
@@ -544,7 +622,7 @@ function ShippingPaymentForm({
       const checkStatus = async () => {
         attempts++;
         const response = await fetch(
-          `/api/stripe/check-payment?claimId=${claimId}`,
+          `/api/stripe/check-payment?claimId=${encodeURIComponent(claimId)}`,
           {
             method: "GET",
           }
@@ -553,12 +631,14 @@ function ShippingPaymentForm({
         if (response.ok) {
           const data = await response.json();
           if (data.status === "paid" || data.status === "succeeded") {
+            setPaymentStatus("success");
             toast.success("Payment completed successfully!");
             onComplete();
             return true;
           }
 
           if (data.status === "failed") {
+            setPaymentStatus("error");
             toast.error("Payment failed. Please try again.");
             return true;
           }
@@ -591,8 +671,22 @@ function ShippingPaymentForm({
     }
   };
 
+  // Get current status message to display
+  const getStatusMessage = () => {
+    switch (paymentStatus) {
+      case "processing":
+        return "Your payment is being processed...";
+      case "success":
+        return "Payment successful! Redirecting...";
+      case "error":
+        return paymentError || "An error occurred. Please try again.";
+      default:
+        return "";
+    }
+  };
+
   return (
-    <Card className='w-full'>
+    <Card className='w-full shadow-md'>
       <CardHeader>
         <CardTitle>Payment Details</CardTitle>
         <CardDescription>
@@ -604,12 +698,16 @@ function ShippingPaymentForm({
           <PaymentElement className='mb-6' />
 
           {paymentError && (
-            <div className='text-sm text-destructive mb-4'>{paymentError}</div>
+            <Alert variant='destructive' className='mb-4'>
+              <AlertCircle className='h-4 w-4' />
+              <AlertTitle>Payment Error</AlertTitle>
+              <AlertDescription>{paymentError}</AlertDescription>
+            </Alert>
           )}
 
           {isProcessing && (
             <Alert className='mb-4'>
-              <AlertCircle className='h-4 w-4' />
+              <Loader2 className='h-4 w-4 animate-spin' />
               <AlertTitle>Payment is processing</AlertTitle>
               <AlertDescription>
                 Your payment is being processed. This may take a moment.
@@ -618,21 +716,36 @@ function ShippingPaymentForm({
           )}
         </form>
       </CardContent>
-      <CardFooter className='flex justify-between'>
+      <CardFooter className='flex flex-col sm:flex-row gap-2 justify-between'>
         <Button
           variant='outline'
           onClick={onCancel}
-          disabled={isLoading || isProcessing}
+          disabled={isLoading || isProcessing || paymentStatus === "success"}
           type='button'
+          className='w-full sm:w-auto'
         >
           Back
         </Button>
         <Button
           form='payment-form'
           type='submit'
-          disabled={!stripe || !elements || isLoading || isProcessing}
+          disabled={
+            !stripe ||
+            !elements ||
+            isLoading ||
+            isProcessing ||
+            paymentStatus === "success"
+          }
+          className='w-full sm:w-auto'
         >
-          {isLoading ? "Processing..." : "Pay Now"}
+          {isLoading ? (
+            <>
+              <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+              Processing...
+            </>
+          ) : (
+            "Pay Now"
+          )}
         </Button>
       </CardFooter>
     </Card>

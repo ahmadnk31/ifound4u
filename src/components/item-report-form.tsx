@@ -35,6 +35,7 @@ import { LocationInput } from "./location-input";
 import { AIImageUpload } from "./ai-image-upload";
 import { createClient } from "@/lib/client";
 import { toast } from "sonner";
+import { AddressAutocomplete } from "./address-autocomplete";
 
 // Define the schema for the form
 const itemReportSchema = z.object({
@@ -127,7 +128,7 @@ export function ItemReportForm() {
     };
 
     checkAuth();
-  }, [form]);
+  }, [form, supabase.auth]);
 
   const onSubmit = async (values: ItemReportFormValues) => {
     try {
@@ -374,26 +375,16 @@ export function ItemReportForm() {
           name='location'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>
-                {reportType === "lost"
-                  ? "Where did you lose it?"
-                  : "Where did you find it?"}
-              </FormLabel>
               <FormControl>
                 <LocationInput
                   onChange={(location) => {
-                    if (location) {
-                      field.onChange(location);
-                    }
+                    field.onChange(location);
                   }}
                   value={field.value}
-                  required
+                  label='Location'
+                  description='Where did you lose or find the item?'
                 />
               </FormControl>
-              <FormDescription>
-                Enter the location where you{" "}
-                {reportType === "lost" ? "lost" : "found"} the item.
-              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -439,18 +430,15 @@ export function ItemReportForm() {
           name='description'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Item Description</FormLabel>
+              <FormLabel>Description</FormLabel>
               <FormControl>
                 <Textarea
-                  placeholder='Describe the item in detail...'
-                  className='min-h-[120px]'
+                  placeholder='Please provide a detailed description'
                   {...field}
                 />
               </FormControl>
               <FormDescription>
-                Provide a detailed description of the item to help with
-                identification. Upload an image to get an AI-generated
-                description automatically.
+                Provide as much detail as possible to help identify the item.
               </FormDescription>
               <FormMessage />
             </FormItem>
