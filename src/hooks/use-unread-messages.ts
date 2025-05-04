@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/client";
-import { useRouter } from "next/navigation";
 
 interface UnreadMessageCounts {
   unreadCounts: Record<string, number>;
@@ -16,10 +15,17 @@ export function useUnreadMessages(): UnreadMessageCounts {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<Error | null>(null);
   const supabase = createClient();
-  const router = useRouter();
 
-  const fetchUnreadCounts = async () => {
+  // Use a ref to track if a fetch is in progress to prevent multiple simultaneous requests
+  const isFetchingRef = useRef(false);
+
+  // Make fetchUnreadCounts a memoized function with useCallback
+  const fetchUnreadCounts = useCallback(async () => {
+    // Prevent multiple simultaneous fetches
+    if (isFetchingRef.current) return;
+
     try {
+      isFetchingRef.current = true;
       setIsLoading(true);
       setError(null);
 
@@ -44,14 +50,17 @@ export function useUnreadMessages(): UnreadMessageCounts {
       setError(err instanceof Error ? err : new Error("Unknown error"));
     } finally {
       setIsLoading(false);
+      isFetchingRef.current = false;
     }
-  };
+  }, [supabase]);
 
   // Set up a Supabase realtime subscription for new chat messages
   useEffect(() => {
+    let isSubscribed = true;
+
     const setupRealtimeSubscription = async () => {
       const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData.session) return;
+      if (!sessionData.session || !isSubscribed) return;
 
       // Subscribe to chat_messages table for new inserts
       const channel = supabase
@@ -63,9 +72,11 @@ export function useUnreadMessages(): UnreadMessageCounts {
             schema: "public",
             table: "chat_messages",
           },
-          (payload) => {
+          (_payload) => {
             // When a new message is sent, refresh the counts
-            fetchUnreadCounts();
+            if (isSubscribed) {
+              fetchUnreadCounts();
+            }
           }
         )
         .on(
@@ -76,32 +87,49 @@ export function useUnreadMessages(): UnreadMessageCounts {
             table: "chat_messages",
             filter: "is_read=eq.true",
           },
-          (payload) => {
+          (_payload) => {
             // When messages are marked as read, refresh the counts
-            fetchUnreadCounts();
+            if (isSubscribed) {
+              fetchUnreadCounts();
+            }
           }
         )
         .subscribe();
 
       return () => {
-        supabase.removeChannel(channel);
+        if (channel) {
+          supabase.removeChannel(channel);
+        }
       };
     };
 
-    setupRealtimeSubscription();
-    fetchUnreadCounts();
+    const subscription = setupRealtimeSubscription();
 
-    // Refresh counts when the user navigates between pages
-    const handleRouteChange = () => {
+    // Initial fetch
+    if (isSubscribed) {
       fetchUnreadCounts();
+    }
+
+    // Use a single focus handler that's debounced for mobile
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && isSubscribed) {
+        fetchUnreadCounts();
+      }
     };
 
-    window.addEventListener("focus", fetchUnreadCounts);
+    // Using visibilitychange instead of focus for better mobile support
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
-      window.removeEventListener("focus", fetchUnreadCounts);
+      isSubscribed = false;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+
+      // Clean up subscription
+      subscription.then((cleanup) => {
+        if (cleanup) cleanup();
+      });
     };
-  }, [supabase, router]);
+  }, [supabase, fetchUnreadCounts]);
 
   return {
     unreadCounts,
