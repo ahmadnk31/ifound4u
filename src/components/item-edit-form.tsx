@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -49,7 +49,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
-// Define the schema for the form - similar to ItemReportForm but allowing more optional fields for editing
 const itemEditSchema = z.object({
   type: z.enum(["lost", "found"]),
   category: z.string().min(1, { message: "Please select a category" }),
@@ -93,7 +92,25 @@ const itemCategories = [
 ];
 
 interface ItemEditFormProps {
-  item: any; // The item data from the database
+  item: {
+    id: string;
+    type: string;
+    category: string;
+    title: string;
+    description: string;
+    date: string;
+    location_address: string;
+    location_latitude: number;
+    location_longitude: number;
+    location_place_id?: string;
+    image_url?: string;
+    contact_info?: {
+      name: string;
+      email: string;
+      phone?: string;
+    };
+    user_id: string;
+  };
 }
 
 export function ItemEditForm({ item }: ItemEditFormProps) {
@@ -105,7 +122,6 @@ export function ItemEditForm({ item }: ItemEditFormProps) {
   const router = useRouter();
   const supabase = createClient();
 
-  // Initialize the form with the item data
   const form = useForm<ItemEditFormValues>({
     resolver: zodResolver(itemEditSchema),
     defaultValues: {
@@ -131,13 +147,11 @@ export function ItemEditForm({ item }: ItemEditFormProps) {
 
   const reportType = form.watch("type");
 
-  // Function to update the item
   const onSubmit = async (values: ItemEditFormValues) => {
     try {
       setIsSubmitting(true);
       setFormError(null);
 
-      // Don't proceed if the image was flagged by moderation
       if (
         !imageModerated &&
         values.imageUrl &&
@@ -150,7 +164,6 @@ export function ItemEditForm({ item }: ItemEditFormProps) {
         return;
       }
 
-      // Update the item details
       const { error: itemError } = await supabase
         .from("items")
         .update({
@@ -172,7 +185,6 @@ export function ItemEditForm({ item }: ItemEditFormProps) {
         throw new Error(`Error updating item: ${itemError.message}`);
       }
 
-      // Update the contact information
       const { error: contactError } = await supabase
         .from("contact_info")
         .update({
@@ -188,9 +200,8 @@ export function ItemEditForm({ item }: ItemEditFormProps) {
 
       toast.success("Item updated successfully!");
 
-      // Navigate back to the items page or item details
       router.push(`/item/${item.id}`);
-      router.refresh(); // Refresh the page to update the item list
+      router.refresh();
     } catch (error) {
       console.error("Error updating item:", error);
       setFormError(
@@ -204,13 +215,11 @@ export function ItemEditForm({ item }: ItemEditFormProps) {
     }
   };
 
-  // Function to delete the item
   const handleDeleteItem = async () => {
     try {
       setIsDeleting(true);
       setFormError(null);
 
-      // Check if the item has any claims
       const { data: claims, error: claimsError } = await supabase
         .from("item_claims")
         .select("id")
@@ -219,7 +228,6 @@ export function ItemEditForm({ item }: ItemEditFormProps) {
       if (claimsError)
         throw new Error(`Error checking claims: ${claimsError.message}`);
 
-      // If there are claims, we need to delete them first due to foreign key constraints
       if (claims && claims.length > 0) {
         const { error: deleteClaimsError } = await supabase
           .from("item_claims")
@@ -232,7 +240,6 @@ export function ItemEditForm({ item }: ItemEditFormProps) {
           );
       }
 
-      // Check if there are any chat messages related to the item
       const { data: messages, error: messagesError } = await supabase
         .from("chat_messages")
         .select("id")
@@ -241,7 +248,6 @@ export function ItemEditForm({ item }: ItemEditFormProps) {
       if (messagesError)
         throw new Error(`Error checking messages: ${messagesError.message}`);
 
-      // Delete chat messages if they exist
       if (messages && messages.length > 0) {
         const { error: deleteMessagesError } = await supabase
           .from("chat_messages")
@@ -254,7 +260,6 @@ export function ItemEditForm({ item }: ItemEditFormProps) {
           );
       }
 
-      // Now delete the contact info
       const { error: contactError } = await supabase
         .from("contact_info")
         .delete()
@@ -263,7 +268,6 @@ export function ItemEditForm({ item }: ItemEditFormProps) {
       if (contactError)
         throw new Error(`Error deleting contact info: ${contactError.message}`);
 
-      // Finally delete the item
       const { error: itemError } = await supabase
         .from("items")
         .delete()
@@ -484,7 +488,6 @@ export function ItemEditForm({ item }: ItemEditFormProps) {
                   <AIImageUpload
                     onImageSelect={(url) => field.onChange(url)}
                     onDescriptionGenerated={(desc) => {
-                      // Only use the AI-generated description if the current description is empty or the default one
                       const currentDescription = form.getValues("description");
                       if (
                         !currentDescription ||
@@ -540,7 +543,6 @@ export function ItemEditForm({ item }: ItemEditFormProps) {
           />
         </div>
 
-        {/* Contact Information Section */}
         <div className='p-6 bg-accent/10 rounded-lg border border-border/30 mb-8'>
           <h3 className='text-lg font-semibold mb-4'>Contact Information</h3>
           <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
@@ -577,7 +579,7 @@ export function ItemEditForm({ item }: ItemEditFormProps) {
                     />
                   </FormControl>
                   <FormDescription>
-                    We'll use this to contact you about your item.
+                    We&apos;ll use this to contact you about your item.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -609,7 +611,6 @@ export function ItemEditForm({ item }: ItemEditFormProps) {
         </div>
 
         <div className='flex flex-col sm:flex-row gap-4 pt-4 mt-8'>
-          {/* Delete button with AlertDialog */}
           <AlertDialog
             open={showDeleteDialog}
             onOpenChange={setShowDeleteDialog}
@@ -654,7 +655,6 @@ export function ItemEditForm({ item }: ItemEditFormProps) {
             </AlertDialogContent>
           </AlertDialog>
 
-          {/* Update button */}
           <Button
             type='submit'
             disabled={isSubmitting}
