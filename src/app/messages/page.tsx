@@ -58,6 +58,7 @@ interface ChatRoom {
 
 export default function MessagesPage() {
   const [isLoading, setIsLoading] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
   const [username, setUsername] = useState<string>("");
   const [activeChats, setActiveChats] = useState<ChatRoom[]>([]);
   const [selectedChat, setSelectedChat] = useState<ChatRoom | null>(null);
@@ -73,8 +74,15 @@ export default function MessagesPage() {
   const roomParam = searchParams.get("room");
   const supabase = createClient();
 
+  // Add a mounted state check to avoid hydration mismatch
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   // Fetch user data and active chat rooms
   useEffect(() => {
+    if (!isMounted) return; // Skip fetching if component is not mounted yet
+
     const fetchUserAndChats = async () => {
       setIsLoading(true);
       try {
@@ -335,7 +343,7 @@ export default function MessagesPage() {
     };
 
     fetchUserAndChats();
-  }, [supabase, router, roomParam]);
+  }, [supabase, router, roomParam, isMounted]);
 
   // Handle approval/rejection of a claim
   const handleClaimAction = async () => {

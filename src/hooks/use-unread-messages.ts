@@ -1,3 +1,4 @@
+'use client'
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/client";
 import { useIsMobile } from "./use-mobile";
