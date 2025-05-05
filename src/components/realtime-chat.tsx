@@ -6,13 +6,26 @@ import { useChatScroll } from "@/hooks/use-chat-scroll";
 import { type ChatMessage, useRealtimeChat } from "@/hooks/use-realtime-chat";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, DollarSign, CreditCard } from "lucide-react";
+import {
+  Send,
+  DollarSign,
+  CreditCard,
+  BellRing,
+  BellOff,
+  AlertTriangle,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { ShippingPaymentWrapper } from "./shipping-payment-form";
 import { SetupPaymentAccount } from "./setup-payment-account";
 import { createClient } from "@/lib/client";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  isBrowserNotificationSupported,
+  getNotificationPermission,
+  requestNotificationPermission,
+  isSafari,
+} from "@/lib/notification-utils";
 
 interface RealtimeChatProps {
   roomName: string;
@@ -69,6 +82,8 @@ export const RealtimeChat = ({
   const [isCheckingStripeAccount, setIsCheckingStripeAccount] = useState(false);
   const [needsSetupPayment, setNeedsSetupPayment] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [notificationPermission, setNotificationPermission] =
+    useState<NotificationPermission | null>(null);
 
   // Add a new function to check finder's account status against Stripe API
   const checkFinderAccountWithStripe = useCallback(async (finderId: string) => {
@@ -272,14 +287,17 @@ export const RealtimeChat = ({
       (message, index, self) =>
         index === self.findIndex((m) => m.id === message.id)
     );
-    // Sort by creation date
-    const sortedMessages = uniqueMessages.sort((a, b) =>
-      a.createdAt.localeCompare(b.createdAt)
-    );
+    // Sort by creation date - using timestamp property instead of createdAt
+    const sortedMessages = uniqueMessages.sort((a, b) => {
+      // Add null checks to handle potential undefined values safely
+      if (!a.timestamp) return 1; // Push null/undefined values to the end
+      if (!b.timestamp) return -1; // Push null/undefined values to the end
+      return a.timestamp.localeCompare(b.timestamp);
+    });
 
     return sortedMessages;
   }, [initialMessages, realtimeMessages]);
-
+console.log(`messages`,allMessages);
   useEffect(() => {
     if (onMessage) {
       onMessage(allMessages);
@@ -464,6 +482,61 @@ export const RealtimeChat = ({
     };
   }, [roomName, supabase, username]);
 
+  // Initialize notification permission state
+  useEffect(() => {
+    // Only run in browser
+    if (typeof window !== "undefined") {
+      setNotificationPermission(getNotificationPermission());
+    }
+  }, []);
+
+  // Handle notification permission request
+  const handleRequestNotifications = async () => {
+    const result = await requestNotificationPermission();
+    setNotificationPermission(result);
+    if (result === "granted") {
+      toast.success("Notifications enabled!");
+    } else if (result === "denied") {
+      toast.error(
+        "Notification permission denied. Please enable in browser settings."
+      );
+    }
+  };
+
+  // Helper for showing notification permission status
+  const renderNotificationButton = () => {
+    if (!isBrowserNotificationSupported()) {
+      return null;
+    }
+
+    if (notificationPermission === "granted") {
+      return (
+        <Button
+          type='button'
+          variant='ghost'
+          size='icon'
+          className='text-green-500 hover:text-green-600 hover:bg-green-100'
+          title='Notifications are enabled'
+        >
+          <BellRing className='size-4' />
+        </Button>
+      );
+    }
+
+    return (
+      <Button
+        type='button'
+        variant='ghost'
+        size='icon'
+        className='text-muted-foreground hover:text-foreground'
+        onClick={handleRequestNotifications}
+        title='Enable notifications'
+      >
+        <BellOff className='size-4' />
+      </Button>
+    );
+  };
+
   // Mark messages as read when user interacts with the chat
   const handleChatFocus = useCallback(() => {
     if (unreadCount > 0) {
@@ -554,6 +627,25 @@ export const RealtimeChat = ({
             </Button>
           </AlertDescription>
         </Alert>
+      )}
+
+      {/* Safari notification banner */}
+      {isSafari() && notificationPermission === "default" && (
+        <div className='bg-blue-50 p-2 text-sm flex items-center justify-between'>
+          <div className='flex items-center'>
+            <AlertTriangle className='h-4 w-4 text-blue-600 mr-2' />
+            <span>
+              Enable notifications to receive alerts when you get new messages
+            </span>
+          </div>
+          <Button
+            size='sm'
+            variant='outline'
+            onClick={handleRequestNotifications}
+          >
+            Enable
+          </Button>
+        </div>
       )}
 
       {/* Messages */}
@@ -725,6 +817,9 @@ export const RealtimeChat = ({
               showSetupPaymentForm
             }
           />
+
+          {/* Notification button */}
+          {renderNotificationButton()}
 
           {/* Payment setup icon for finders */}
           {needsSetupPayment &&

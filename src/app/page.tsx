@@ -161,7 +161,7 @@ export default function Home() {
                       {item.description}
                     </p>
                     <Link
-                      href={`/item/${item.id}`}
+                      href={`/items/${item.id}`}
                       className='inline-flex items-center text-blue-500 hover:text-blue-700'
                     >
                       View details <ArrowRight className='ml-1 h-3 w-3' />
