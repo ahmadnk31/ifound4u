@@ -694,10 +694,10 @@ export default function MessagesPage() {
 
               <Separator className='my-4' />
 
-              {/* Chat interface */}
+              {/* Chat interface - replacing fixed heights with relative and responsive heights */}
               <div className='flex-grow'>
-                <Card className='h-[500px]'>
-                  <CardHeader>
+                <Card className='h-full min-h-[300px] md:min-h-[400px]'>
+                  <CardHeader className='pb-2'>
                     <CardTitle>Chat</CardTitle>
                     <CardDescription>
                       {(() => {
@@ -713,7 +713,7 @@ export default function MessagesPage() {
                       })()}
                     </CardDescription>
                   </CardHeader>
-                  <div className='h-[400px]'>
+                  <div className='h-[calc(100%-8rem)] min-h-[250px]'>
                     <RealtimeChat
                       roomName={selectedChat.chatRoomId}
                       username={username}
